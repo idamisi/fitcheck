@@ -23,9 +23,10 @@ Reimagine Creative Industries with AI — FitCheck acts as a creative styling as
 ## AI Approach and Architecture
 
 - **Frontend/Backend:** Next.js (React + API routes), Node.js runtime
+- **Styling:** Tailwind CSS
 - **Data layer:** ~150 clothing items stored as structured JSON (id, category, color, style tags, image reference, garment measurements), accessed through a dedicated data-access module rather than imported directly into UI components — this keeps the door open to swapping in a live API without restructuring the app
-- **AI component:** A single AI call triggered on item selection. Input: the user's measurements, the selected item's measurements, the full catalog, and any active filters. Output: (1) descriptive, non-evaluative fit language comparing garment to user measurements, and (2) 2-3 recommended complementary items from the catalog that respect the user's active filters. No scoring, no good/bad verdicts — the model describes, it doesn't judge.
-- **Avatar generation:** parametric scaling of a 2D SVG template based on user-entered measurements, with fixed anchor points (shoulder, waist, hem lines) so clothing overlays render at true relative proportions across different body sizes — fit mismatches are visible through this accurate geometry, not through AI-driven visual changes
+- **AI component:** A single AI call triggered on item selection using IBM Granite via watsonx.ai. Input: the user's measurements, the selected item's measurements, the full catalog, and any active filters. Output: (1) descriptive, non-evaluative fit language comparing garment to user measurements, and (2) 2-3 recommended complementary items from the catalog that respect the user's active filters. No scoring, no good/bad verdicts — the model describes, it doesn't judge.
+- **Avatar generation:** Parametric scaling of a 2D SVG template based on user-entered measurements, with fixed anchor points (shoulder, waist, hem lines) so clothing overlays render at true relative proportions across different body sizes — fit mismatches are visible through this accurate geometry, not through AI-driven visual changes
 
 ## How IBM Bob Was Used
 
