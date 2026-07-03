@@ -8,14 +8,13 @@ Comparing clothing items across multiple online shops is tedious and visually di
 
 ## Solution Description
 
-FitCheck lets a user generate a simplified 2D avatar based on their own body measurements, then browse a catalog of clothing items and preview combinations directly on that avatar. The goal is not garment fit simulation — it's fast, low-friction visual style-matching, so users can judge whether pieces work together before ever visiting a store.
+FitCheck lets a user generate a simplified 2D avatar based on their own body measurements, then browse a catalog of clothing items and see them rendered on that avatar at true relative proportions — so a garment that's too short or too narrow for the user's frame is visually apparent, not simulated. When a user selects an item, the app returns a plain-language, non-evaluative comparison between the garment's measurements and the user's own, plus a small set of recommended complementary items. FitCheck does not judge fit as "good" or "bad" — it surfaces factual comparisons and lets the user decide what works for them.
 
 **Core features:**
 - Manual measurement input (height, shoulder width, chest, waist, hip, inseam) mapped to a parametrically scaled 2D avatar
-- A catalog of ~150 clothing items, browsable by category, color, and style
-- A combination view that overlays selected items on the user's avatar
-- AI-assisted outfit scoring that reasons over item attributes and returns a compatibility verdict with a plain-language explanation
-- AI-powered outfit suggestions that proactively recommend complementary pieces from the catalog based on what the user has already selected
+- A catalog of ~150 clothing items, browsable and filterable by category, color, and style
+- A combination view that overlays selected items on the user's avatar at true relative scale, using fixed anchor points, so fit mismatches are visible through accurate geometry
+- On item selection, a single AI call returns: (1) descriptive fit language comparing the garment's measurements to the user's ("runs narrow through the shoulders relative to your measurements" — no scores, no "too small/too big" judgments), and (2) 2-3 recommended complementary catalog items, respecting any active filters
 
 ## Selected Challenge Theme
 
@@ -24,21 +23,13 @@ Reimagine Creative Industries with AI — FitCheck acts as a creative styling as
 ## AI Approach and Architecture
 
 - **Frontend/Backend:** Next.js (React + API routes), Node.js runtime
-- **Data layer:** ~150 clothing items stored as structured JSON (id, category, color, style tags, image reference), accessed through a dedicated data-access module rather than imported directly into UI components — keeping the door open to swapping in a live API without restructuring the app
-- **AI component:** Rule-based compatibility scoring as a baseline, with an LLM call layered on top to reason over item attributes and generate natural-language outfit explanations and proactive suggestions
-- **Avatar generation:** Parametric scaling of a 2D SVG template based on user-entered measurements, with fixed anchor points (shoulder, waist, hem lines) so clothing overlays align correctly across different body proportions
+- **Data layer:** ~150 clothing items stored as structured JSON (id, category, color, style tags, image reference, garment measurements), accessed through a dedicated data-access module rather than imported directly into UI components — this keeps the door open to swapping in a live API without restructuring the app
+- **AI component:** A single AI call triggered on item selection. Input: the user's measurements, the selected item's measurements, the full catalog, and any active filters. Output: (1) descriptive, non-evaluative fit language comparing garment to user measurements, and (2) 2-3 recommended complementary items from the catalog that respect the user's active filters. No scoring, no good/bad verdicts — the model describes, it doesn't judge.
+- **Avatar generation:** parametric scaling of a 2D SVG template based on user-entered measurements, with fixed anchor points (shoulder, waist, hem lines) so clothing overlays render at true relative proportions across different body sizes — fit mismatches are visible through this accurate geometry, not through AI-driven visual changes
 
 ## How IBM Bob Was Used
 
-Bob is our primary development environment for this project — used to scaffold the Next.js project structure, build out components, and implement the matching and avatar logic. Specific examples of Bob's contributions (and where we adjusted its output) will be documented here as development progresses.
-
-## Repository Structure
-
-```
-fitcheck/
-├── frontend/        # Next.js application (UI + API routes)
-└── data/            # Structured JSON clothing catalog
-```
+*This section will be filled in as development progresses.* Bob is our primary development environment for this project — used to scaffold the Next.js project structure, build out components, and implement the matching/avatar logic. Specific examples of Bob's contributions (and where we adjusted its output) will be documented here as they happen.
 
 ## Team
 
