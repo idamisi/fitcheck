@@ -14,8 +14,8 @@ const DEFAULT: Required<Measurements> = {
 };
 
 // ─── SVG canvas ──────────────────────────────────────────────────────────────
-const VB_W = 200; // viewBox width
-const VB_H = 400; // viewBox height
+const VB_W = 280; // viewBox width — wider to fit arms
+const VB_H = 420; // viewBox height
 const CX = VB_W / 2; // horizontal centre
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -102,12 +102,12 @@ export default function Avatar({ measurements }: Props) {
   const FOOT_TOE_X = FOOT_HW * 1.6; // toe extends forward (right of centre)
 
   // Arm widths
-  const ARM_TOP_HW = 9 * heightScale;
-  const ARM_BOT_HW = 6 * heightScale;
+  const ARM_TOP_HW = 14 * heightScale;
+  const ARM_BOT_HW = 9 * heightScale;
 
   // Arm bottom Y ≈ same as HIP_Y (arms reach roughly to hip)
-  const ARM_BOT_Y = HIP_Y;
-  const ARM_TOP_Y = SHOULDER_Y + 8 * heightScale;
+  const ARM_BOT_Y = HIP_Y + 10 * heightScale;
+  const ARM_TOP_Y = SHOULDER_Y + 6 * heightScale;
 
   // ── torso path (shoulder → chest → waist → hip) ──────────────────────────
   // Uses cubic bezier curves for organic shape transitions.
@@ -155,26 +155,23 @@ export default function Avatar({ measurements }: Props) {
   ].join(" ");
 
   // ── left arm path ─────────────────────────────────────────────────────────
-  const leftArmX = CX - shoulderHW;
+  // Arms hang straight down from the shoulder, slightly away from the torso
+  const leftArmX = CX - shoulderHW - 4;
   const leftArmPath = [
     `M ${leftArmX} ${ARM_TOP_Y}`,
-    `L ${leftArmX - ARM_TOP_HW} ${ARM_TOP_Y + 10 * heightScale}`,
-    `L ${leftArmX - ARM_BOT_HW} ${ARM_BOT_Y}`,
-    `L ${leftArmX + ARM_BOT_HW * 0.4} ${ARM_BOT_Y}`,
-    `L ${leftArmX + ARM_TOP_HW * 0.2} ${ARM_TOP_Y + 10 * heightScale}`,
-    `L ${leftArmX + ARM_TOP_HW * 0.3} ${ARM_TOP_Y}`,
+    `C ${leftArmX - ARM_TOP_HW} ${ARM_TOP_Y}, ${leftArmX - ARM_TOP_HW} ${ARM_TOP_Y + 20 * heightScale}, ${leftArmX - ARM_BOT_HW} ${ARM_BOT_Y}`,
+    `L ${leftArmX + ARM_BOT_HW * 0.5} ${ARM_BOT_Y}`,
+    `C ${leftArmX + ARM_TOP_HW * 0.3} ${ARM_TOP_Y + 20 * heightScale}, ${leftArmX + ARM_TOP_HW * 0.3} ${ARM_TOP_Y}, ${leftArmX} ${ARM_TOP_Y}`,
     "Z",
   ].join(" ");
 
   // ── right arm path ────────────────────────────────────────────────────────
-  const rightArmX = CX + shoulderHW;
+  const rightArmX = CX + shoulderHW + 4;
   const rightArmPath = [
     `M ${rightArmX} ${ARM_TOP_Y}`,
-    `L ${rightArmX + ARM_TOP_HW} ${ARM_TOP_Y + 10 * heightScale}`,
-    `L ${rightArmX + ARM_BOT_HW} ${ARM_BOT_Y}`,
-    `L ${rightArmX - ARM_BOT_HW * 0.4} ${ARM_BOT_Y}`,
-    `L ${rightArmX - ARM_TOP_HW * 0.2} ${ARM_TOP_Y + 10 * heightScale}`,
-    `L ${rightArmX - ARM_TOP_HW * 0.3} ${ARM_TOP_Y}`,
+    `C ${rightArmX + ARM_TOP_HW} ${ARM_TOP_Y}, ${rightArmX + ARM_TOP_HW} ${ARM_TOP_Y + 20 * heightScale}, ${rightArmX + ARM_BOT_HW} ${ARM_BOT_Y}`,
+    `L ${rightArmX - ARM_BOT_HW * 0.5} ${ARM_BOT_Y}`,
+    `C ${rightArmX - ARM_TOP_HW * 0.3} ${ARM_TOP_Y + 20 * heightScale}, ${rightArmX - ARM_TOP_HW * 0.3} ${ARM_TOP_Y}, ${rightArmX} ${ARM_TOP_Y}`,
     "Z",
   ].join(" ");
 
@@ -185,7 +182,6 @@ export default function Avatar({ measurements }: Props) {
         width={VB_W}
         height={VB_H}
         aria-label="Body silhouette"
-        className="overflow-visible"
       >
         {/* ── Head ── */}
         <ellipse
