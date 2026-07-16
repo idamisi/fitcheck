@@ -219,12 +219,6 @@ export default function MeasurementForm({ onSubmit }: Props) {
     setScreen("manual");
   }
 
-  function handleOpen() {
-    setScreen("choice");
-    setEstError(null);
-    setIsOpen(true);
-  }
-
   function handleClose() {
     setIsOpen(false);
   }
@@ -407,15 +401,34 @@ export default function MeasurementForm({ onSubmit }: Props) {
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Trigger button */}
-      <button
-        onClick={handleOpen}
-        className="w-full max-w-md mx-auto block rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
-      >
-        Enter Your Measurements
-      </button>
+      {/* ── Choice buttons — rendered inline on Screen 2, not behind a modal ── */}
+      {screen === "choice" && (
+        <div className="flex flex-col gap-3 w-full">
+          <button
+            type="button"
+            onClick={() => { setIsOpen(true); openManual(); }}
+            className="w-full rounded-md border border-zinc-900 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
+          >
+            I know my measurements
+            <span className="block text-xs font-normal text-zinc-500 mt-0.5">
+              Enter each value directly
+            </span>
+          </button>
 
-      {/* Modal backdrop */}
+          <button
+            type="button"
+            onClick={() => { setIsOpen(true); setEstStep(0); setEstError(null); setEstShowFaq(false); setScreen("estimate"); }}
+            className="w-full rounded-md border border-zinc-900 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
+          >
+            Estimate my measurements
+            <span className="block text-xs font-normal text-zinc-500 mt-0.5">
+              Tell us your size and we'll estimate
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Modal backdrop — used for manual + estimate step flows */}
       {isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -431,40 +444,9 @@ export default function MeasurementForm({ onSubmit }: Props) {
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
 
-            {/* ── CHOICE SCREEN ─────────────────────────────────────────── */}
+            {/* ── CHOICE SCREEN (fallback — should not normally render) ─── */}
             {screen === "choice" && (
-              <>
-                <div>
-                  <h2 className="text-lg font-semibold text-zinc-900">Your measurements</h2>
-                  <p className="mt-1 text-sm text-zinc-500">
-                    How would you like to enter them?
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={() => openManual()}
-                    className="w-full rounded-md bg-zinc-900 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors text-left"
-                  >
-                    I know my measurements
-                    <span className="block text-xs font-normal text-zinc-400 mt-0.5">
-                      Enter each value directly
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => { setEstStep(0); setEstError(null); setEstShowFaq(false); setScreen("estimate"); }}
-                    className="w-full rounded-md border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 transition-colors text-left"
-                  >
-                    Estimate my measurements
-                    <span className="block text-xs font-normal text-zinc-500 mt-0.5">
-                      Tell us your size and we'll estimate
-                    </span>
-                  </button>
-                </div>
-              </>
+              <p className="text-sm text-zinc-500">Loading…</p>
             )}
 
             {/* ── ESTIMATE STEP FLOW ────────────────────────────────────── */}
