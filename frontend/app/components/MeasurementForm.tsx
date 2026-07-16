@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export type Measurements = {
   height: number;
@@ -73,6 +73,56 @@ const EMPTY: Measurements = {
   inseam: 0,
 };
 
+// ─── Estimate step definitions ────────────────────────────────────────────────
+
+type EstStepKey = "height" | "weight" | "usualTopSize" | "usualBottomSize" | "usualShoeSize" | "fitComment";
+
+type EstStepMeta = {
+  key: EstStepKey;
+  label: string;
+  intro: string;
+  faq: string;
+};
+
+const EST_STEPS: EstStepMeta[] = [
+  {
+    key: "height",
+    label: "Height (cm)",
+    intro: "Height check! No tiptoes, we'll know.",
+    faq: "Height helps us scale your estimate to roughly the right proportions before we fill in the rest.",
+  },
+  {
+    key: "weight",
+    label: "Weight (kg)",
+    intro: "Now the number your bathroom scale already knows.",
+    faq: "Weight helps us judge overall build alongside height, so the estimate isn't just guessing from height alone.",
+  },
+  {
+    key: "usualTopSize",
+    label: "Usual top size",
+    intro: "Whatever's crammed in your t-shirt drawer — what size is it?",
+    faq: "Your usual top size gives us a starting point for chest and shoulder width, since we don't have your exact measurements yet.",
+  },
+  {
+    key: "usualBottomSize",
+    label: "Usual bottom size",
+    intro: "Trouser talk. What size do you usually grab?",
+    faq: "Your usual bottom size helps estimate waist, hip, and inseam proportions.",
+  },
+  {
+    key: "usualShoeSize",
+    label: "Usual shoe size (US)",
+    intro: "Feet don't lie — what's your usual shoe size?",
+    faq: "This one's just for matching shoe recommendations to you later — it doesn't affect your body measurement estimate.",
+  },
+  {
+    key: "fitComment",
+    label: "Fit notes",
+    intro: "Last one — spill the tea on how clothes usually fit you.",
+    faq: "Details like 'tops run loose on me' or 'pants are always too long' help us adjust the estimate beyond just sizes and numbers.",
+  },
+];
+
 const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL"] as const;
 
 type Screen = "choice" | "estimate" | "manual";
@@ -81,18 +131,76 @@ type Props = {
   onSubmit: (measurements: Measurements) => void;
 };
 
+// ─── EstFaqTooltip ────────────────────────────────────────────────────────────
+// Closes on outside click without the toggle button immediately re-closing it:
+// the document listener is added on the next event-loop tick (setTimeout 0) so
+// the click that opened the tooltip has already finished propagating before the
+// outside-click handler is active.
+
+type EstFaqTooltipProps = {
+  faq: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+};
+
+function EstFaqTooltip({ faq, open, onToggle, onClose }: EstFaqTooltipProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    function handleOutsideClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+
+    // Defer adding the listener so the click that triggered onToggle
+    // has finished bubbling before we start listening.
+    timeoutId = setTimeout(() => {
+      document.addEventListener("click", handleOutsideClick);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, [open, onClose]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="text-xs text-zinc-400 underline underline-offset-2 hover:text-zinc-600 transition-colors"
+      >
+        Why do we need this?
+      </button>
+      {open && (
+        <div className="absolute bottom-full mb-2 left-0 w-64 rounded-lg bg-zinc-800 text-white text-xs px-3 py-2 shadow-lg">
+          {faq}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MeasurementForm({ onSubmit }: Props) {
   // ── shared modal state ────────────────────────────────────────────────────
-  const [isOpen, setIsOpen]   = useState(false);
-  const [screen, setScreen]   = useState<Screen>("choice");
+  const [isOpen, setIsOpen] = useState(false);
+  const [screen, setScreen] = useState<Screen>("choice");
 
   // ── manual modal state ────────────────────────────────────────────────────
-  const [step, setStep]         = useState(0);
-  const [values, setValues]     = useState<Measurements>(EMPTY);
+  const [step, setStep]             = useState(0);
+  const [values, setValues]         = useState<Measurements>(EMPTY);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  // ── estimate form state ───────────────────────────────────────────────────
+  // ── estimate step state ───────────────────────────────────────────────────
+  const [estStep,       setEstStep]       = useState(0);
   const [estHeight,     setEstHeight]     = useState("");
   const [estWeight,     setEstWeight]     = useState("");
   const [estTopSize,    setEstTopSize]    = useState("M");
@@ -100,6 +208,7 @@ export default function MeasurementForm({ onSubmit }: Props) {
   const [estShoeSize,   setEstShoeSize]   = useState("");
   const [estComment,    setEstComment]    = useState("");
   const [estError,      setEstError]      = useState<string | null>(null);
+  const [estShowFaq,    setEstShowFaq]    = useState(false);
 
   // ── helpers ───────────────────────────────────────────────────────────────
   function openManual(prefill: Measurements = EMPTY) {
@@ -120,10 +229,55 @@ export default function MeasurementForm({ onSubmit }: Props) {
     setIsOpen(false);
   }
 
+  // ── estimate step navigation ──────────────────────────────────────────────
+  const estCurrent = EST_STEPS[estStep];
+  const estIsLast  = estStep === EST_STEPS.length - 1;
+
+  function validateEstStep(): string | null {
+    switch (estCurrent.key) {
+      case "height": {
+        const h = parseFloat(estHeight);
+        if (!h) return "Height is required.";
+        if (h < 100 || h > 230) return "Must be between 100 and 230 cm.";
+        return null;
+      }
+      case "weight": {
+        const w = parseFloat(estWeight);
+        if (!w) return "Weight is required.";
+        if (w < 30 || w > 250) return "Must be between 30 and 250 kg.";
+        return null;
+      }
+      case "usualShoeSize":
+        if (!estShoeSize.trim()) return "Shoe size is required.";
+        return null;
+      // dropdowns always have a value; fitComment is optional
+      default:
+        return null;
+    }
+  }
+
+  function handleEstNext() {
+    const err = validateEstStep();
+    if (err) { setEstError(err); return; }
+    setEstError(null);
+    setEstShowFaq(false);
+    setEstStep((s) => s + 1);
+  }
+
+  function handleEstBack() {
+    setEstError(null);
+    setEstShowFaq(false);
+    if (estStep === 0) {
+      setScreen("choice");
+    } else {
+      setEstStep((s) => s - 1);
+    }
+  }
+
   // ── manual modal handlers ─────────────────────────────────────────────────
-  const current  = FIELDS[step];
-  const isLast   = step === FIELDS.length - 1;
-  const rawValue = values[current.key];
+  const current    = FIELDS[step];
+  const isLast     = step === FIELDS.length - 1;
+  const rawValue   = values[current.key];
   const inputValue = rawValue === 0 ? "" : String(rawValue);
 
   function validate(val: number): string | null {
@@ -166,6 +320,90 @@ export default function MeasurementForm({ onSubmit }: Props) {
     }
   }
 
+  // ── render the correct input for each estimate step ───────────────────────
+  function renderEstInput() {
+    switch (estCurrent.key) {
+      case "height":
+        return (
+          <input
+            key="est-height"
+            type="number"
+            min={100}
+            max={230}
+            step="any"
+            autoFocus
+            value={estHeight}
+            onChange={(e) => { setEstHeight(e.target.value); setEstError(null); }}
+            placeholder="100–230"
+            className={`rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${estError ? "border-red-400 focus:ring-red-300" : "border-zinc-300 focus:ring-zinc-400"}`}
+          />
+        );
+      case "weight":
+        return (
+          <input
+            key="est-weight"
+            type="number"
+            min={30}
+            max={250}
+            step="any"
+            autoFocus
+            value={estWeight}
+            onChange={(e) => { setEstWeight(e.target.value); setEstError(null); }}
+            placeholder="30–250"
+            className={`rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${estError ? "border-red-400 focus:ring-red-300" : "border-zinc-300 focus:ring-zinc-400"}`}
+          />
+        );
+      case "usualTopSize":
+        return (
+          <select
+            key="est-top"
+            autoFocus
+            value={estTopSize}
+            onChange={(e) => setEstTopSize(e.target.value)}
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 bg-white"
+          >
+            {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        );
+      case "usualBottomSize":
+        return (
+          <select
+            key="est-bottom"
+            autoFocus
+            value={estBottomSize}
+            onChange={(e) => setEstBottomSize(e.target.value)}
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 bg-white"
+          >
+            {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        );
+      case "usualShoeSize":
+        return (
+          <input
+            key="est-shoe"
+            type="text"
+            autoFocus
+            value={estShoeSize}
+            onChange={(e) => { setEstShoeSize(e.target.value); setEstError(null); }}
+            placeholder="e.g. 10"
+            className={`rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${estError ? "border-red-400 focus:ring-red-300" : "border-zinc-300 focus:ring-zinc-400"}`}
+          />
+        );
+      case "fitComment":
+        return (
+          <textarea
+            key="est-comment"
+            autoFocus
+            value={estComment}
+            onChange={(e) => setEstComment(e.target.value)}
+            placeholder="e.g. tops fit loose on me, pants run long"
+            rows={3}
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 resize-none"
+          />
+        );
+    }
+  }
+
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <>
@@ -184,6 +422,14 @@ export default function MeasurementForm({ onSubmit }: Props) {
           onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
         >
           <div className="relative w-full max-w-sm mx-4 rounded-2xl bg-white shadow-xl p-8 flex flex-col gap-6">
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Close"
+              className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-700 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
 
             {/* ── CHOICE SCREEN ─────────────────────────────────────────── */}
             {screen === "choice" && (
@@ -209,7 +455,7 @@ export default function MeasurementForm({ onSubmit }: Props) {
 
                   <button
                     type="button"
-                    onClick={() => setScreen("estimate")}
+                    onClick={() => { setEstStep(0); setEstError(null); setEstShowFaq(false); setScreen("estimate"); }}
                     className="w-full rounded-md border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 transition-colors text-left"
                   >
                     Estimate my measurements
@@ -221,118 +467,83 @@ export default function MeasurementForm({ onSubmit }: Props) {
               </>
             )}
 
-            {/* ── ESTIMATE SCREEN ───────────────────────────────────────── */}
+            {/* ── ESTIMATE STEP FLOW ────────────────────────────────────── */}
             {screen === "estimate" && (
               <>
-                <div>
+                {/* Progress dots */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-400 font-medium">
+                    Step {estStep + 1} of {EST_STEPS.length}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {EST_STEPS.map((_, i) => (
+                      <span
+                        key={i}
+                        className={`block h-2 w-2 rounded-full transition-colors ${
+                          i < estStep
+                            ? "bg-zinc-900"
+                            : i === estStep
+                            ? "bg-zinc-600"
+                            : "bg-zinc-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Intro copy */}
+                <p className="text-sm text-zinc-500 leading-relaxed">{estCurrent.intro}</p>
+
+                {/* Input */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-zinc-700">
+                    {estCurrent.label}
+                    {estCurrent.key === "fitComment" && (
+                      <span className="text-zinc-400 font-normal ml-1">(optional)</span>
+                    )}
+                  </label>
+                  {renderEstInput()}
+                  {estError && (
+                    <p className="text-xs text-red-500" role="alert">{estError}</p>
+                  )}
+                </div>
+
+                {/* Per-step FAQ tooltip */}
+                <EstFaqTooltip
+                  faq={estCurrent.faq}
+                  open={estShowFaq}
+                  onToggle={() => setEstShowFaq((v) => !v)}
+                  onClose={() => setEstShowFaq(false)}
+                />
+
+                {/* Navigation */}
+                <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setScreen("choice")}
-                    className="text-xs text-zinc-400 hover:text-zinc-600 mb-3 transition-colors"
+                    onClick={handleEstBack}
+                    className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
                   >
-                    ← Back
+                    Back
                   </button>
-                  <h2 className="text-lg font-semibold text-zinc-900">Estimate my measurements</h2>
-                  <p className="mt-1 text-sm text-zinc-500">
-                    Fill in what you know — we'll estimate the rest. You can review and edit before confirming.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-4">
-                  {/* Height */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-zinc-700">Height (cm)</label>
-                    <input
-                      type="number"
-                      min={100}
-                      max={230}
-                      step="any"
-                      value={estHeight}
-                      onChange={(e) => { setEstHeight(e.target.value); setEstError(null); }}
-                      placeholder="100–230"
-                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                    />
-                  </div>
-
-                  {/* Weight */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-zinc-700">Weight (kg)</label>
-                    <input
-                      type="number"
-                      min={30}
-                      max={250}
-                      step="any"
-                      value={estWeight}
-                      onChange={(e) => { setEstWeight(e.target.value); setEstError(null); }}
-                      placeholder="30–250"
-                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                    />
-                  </div>
-
-                  {/* Top size */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-zinc-700">Usual top size</label>
-                    <select
-                      value={estTopSize}
-                      onChange={(e) => setEstTopSize(e.target.value)}
-                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 bg-white"
+                  {estIsLast ? (
+                    /* TODO: wire to /api/estimate once /api/fit and watsonx.ai client are built */
+                    <button
+                      type="button"
+                      disabled
+                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white opacity-40 cursor-not-allowed"
                     >
-                      {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-
-                  {/* Bottom size */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-zinc-700">Usual bottom size</label>
-                    <select
-                      value={estBottomSize}
-                      onChange={(e) => setEstBottomSize(e.target.value)}
-                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 bg-white"
+                      Estimate & Review
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleEstNext}
+                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
                     >
-                      {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-
-                  {/* Shoe size */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-zinc-700">Shoe size (US)</label>
-                    <input
-                      type="text"
-                      value={estShoeSize}
-                      onChange={(e) => { setEstShoeSize(e.target.value); setEstError(null); }}
-                      placeholder="e.g. 10"
-                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                    />
-                  </div>
-
-                  {/* Fit comment */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-zinc-700">
-                      Fit notes{" "}
-                      <span className="text-zinc-400 font-normal">(optional)</span>
-                    </label>
-                    <textarea
-                      value={estComment}
-                      onChange={(e) => setEstComment(e.target.value)}
-                      placeholder="e.g. tops fit loose on me, pants run long"
-                      rows={2}
-                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 resize-none"
-                    />
-                  </div>
+                      Next
+                    </button>
+                  )}
                 </div>
-
-                {estError && (
-                  <p className="text-xs text-red-500" role="alert">{estError}</p>
-                )}
-
-                {/* TODO: wire to /api/estimate once watsonx.ai client and /api/fit are built */}
-                <button
-                  type="button"
-                  disabled
-                  className="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white opacity-40 cursor-not-allowed"
-                >
-                  Estimate & Review — coming soon
-                </button>
               </>
             )}
 
@@ -392,20 +603,12 @@ export default function MeasurementForm({ onSubmit }: Props) {
                 </div>
 
                 {/* Why tooltip */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowTooltip((v) => !v)}
-                    className="text-xs text-zinc-400 underline underline-offset-2 hover:text-zinc-600 transition-colors"
-                  >
-                    Why do we need this?
-                  </button>
-                  {showTooltip && (
-                    <div className="absolute bottom-full mb-2 left-0 w-64 rounded-lg bg-zinc-800 text-white text-xs px-3 py-2 shadow-lg">
-                      Real measurements mean real fit comparisons, not guesses.
-                    </div>
-                  )}
-                </div>
+                <EstFaqTooltip
+                  faq="Real measurements mean real fit comparisons, not guesses."
+                  open={showTooltip}
+                  onToggle={() => setShowTooltip((v) => !v)}
+                  onClose={() => setShowTooltip(false)}
+                />
 
                 {/* Navigation buttons */}
                 <div className="flex gap-3">
