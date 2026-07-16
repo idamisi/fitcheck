@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import MeasurementForm, { Measurements } from "./components/MeasurementForm";
 import Avatar from "./components/Avatar";
 
@@ -25,17 +26,20 @@ export default function Home() {
   // ── Screen 1: Landing ──────────────────────────────────────────────────────
   if (screen === "landing") {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center px-6">
+      <main className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#FAFAF8" }}>
         <div className="flex flex-col items-center gap-4 text-center">
-          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-zinc-900">
+          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>
             FitCheck
           </h1>
-          <p className="text-lg text-zinc-500 tracking-wide">
+          <p className="text-lg tracking-wide" style={{ color: "#2B3A55" }}>
             Check it fits.
           </p>
           <button
             onClick={() => setScreen("measure")}
-            className="mt-2 px-8 py-2.5 text-sm font-semibold text-zinc-900 bg-white border border-zinc-900 rounded hover:bg-zinc-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
+            className="mt-2 px-8 py-2.5 text-sm font-semibold rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            style={{ background: "#FFFFFF", color: "#2B3A55", border: "1.5px solid #2B3A55", "--tw-ring-color": "#2B3A55" } as React.CSSProperties}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF1F6")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
           >
             Begin
           </button>
@@ -46,34 +50,51 @@ export default function Home() {
 
   // ── Screen 2: Measurement entry ────────────────────────────────────────────
   return (
-    <main className="flex flex-col items-center min-h-screen p-8 gap-10 relative">
+    <main className="flex flex-col items-center min-h-screen p-8 relative" style={{ background: "#FAFAF8" }}>
       <button
-        onClick={() => setScreen("landing")}
-        aria-label="Back to landing"
-        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 rounded"
+        onClick={() => {
+          if (measured) {
+            // Avatar result → back to choice screen
+            setMeasurements(EMPTY);
+          } else {
+            // Choice screen → back to landing
+            setScreen("landing");
+          }
+        }}
+        aria-label="Back"
+        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded"
+        style={{ color: "#2B3A55" }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = "#1A1A1A")}
+        onMouseLeave={(e) => (e.currentTarget.style.color = "#2B3A55")}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back
       </button>
 
-      <div className="flex flex-col items-center gap-2 mt-8">
-        <p className="text-zinc-500 text-base">How would you like to enter your measurements?</p>
-      </div>
-
-      <div className="flex flex-col lg:flex-row items-start justify-center gap-12 w-full max-w-3xl">
-        <div className="flex-1 w-full">
+      {!measured ? (
+        /* Choice screen — centred, takes all available vertical space */
+        <div className="flex flex-col items-center justify-center flex-1 w-full max-w-sm gap-4">
+          <p className="text-base font-medium" style={{ color: "#1A1A1A" }}>How would you like to enter your measurements?</p>
           <MeasurementForm onSubmit={setMeasurements} />
         </div>
-
-        {measured && (
-          <div className="flex flex-col items-center gap-3">
-            <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">
-              Silhouette Preview
-            </h2>
-            <Avatar measurements={measurements} />
-          </div>
-        )}
-      </div>
+      ) : (
+        /* Result screen — avatar + button, tightly grouped, centred */
+        <div className="flex flex-col items-center justify-center flex-1 gap-3 mt-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#2B3A55" }}>
+            Your Avatar
+          </h2>
+          <Avatar measurements={measurements} />
+          <Link
+            href="/catalog"
+            className="px-8 py-2.5 text-sm font-semibold rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            style={{ background: "#FFFFFF", color: "#2B3A55", border: "1.5px solid #2B3A55" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = "#EEF1F6")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = "#FFFFFF")}
+          >
+            See What Fits
+          </Link>
+        </div>
+      )}
     </main>
   );
 }

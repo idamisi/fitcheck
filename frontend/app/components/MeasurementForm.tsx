@@ -221,6 +221,7 @@ export default function MeasurementForm({ onSubmit }: Props) {
 
   function handleClose() {
     setIsOpen(false);
+    setScreen("choice");
   }
 
   // ── estimate step navigation ──────────────────────────────────────────────
@@ -407,10 +408,13 @@ export default function MeasurementForm({ onSubmit }: Props) {
           <button
             type="button"
             onClick={() => { setIsOpen(true); openManual(); }}
-            className="w-full rounded-md border border-zinc-900 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
+            className="w-full rounded-md px-4 py-3 text-sm font-semibold transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            style={{ background: "#FFFFFF", color: "#2B3A55", border: "1.5px solid #2B3A55" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF1F6")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
           >
             I know my measurements
-            <span className="block text-xs font-normal text-zinc-500 mt-0.5">
+            <span className="block text-xs font-normal mt-0.5" style={{ color: "#2B3A55", opacity: 0.7 }}>
               Enter each value directly
             </span>
           </button>
@@ -418,10 +422,13 @@ export default function MeasurementForm({ onSubmit }: Props) {
           <button
             type="button"
             onClick={() => { setIsOpen(true); setEstStep(0); setEstError(null); setEstShowFaq(false); setScreen("estimate"); }}
-            className="w-full rounded-md border border-zinc-900 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
+            className="w-full rounded-md px-4 py-3 text-sm font-semibold transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            style={{ background: "#FFFFFF", color: "#2B3A55", border: "1.5px solid #2B3A55" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF1F6")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
           >
             Estimate my measurements
-            <span className="block text-xs font-normal text-zinc-500 mt-0.5">
+            <span className="block text-xs font-normal mt-0.5" style={{ color: "#2B3A55", opacity: 0.7 }}>
               Tell us your size and we'll estimate
             </span>
           </button>

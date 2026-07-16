@@ -259,11 +259,6 @@ export default function Avatar({ measurements }: Props) {
         </g>
       </svg>
 
-      <p className="text-xs text-zinc-400 select-none">
-        {measurements.height > 0
-          ? `${measurements.height} cm · shoulder ${measurements.shoulderWidth} · waist ${measurements.waist} · hip ${measurements.hip}`
-          : "Default proportions — submit measurements to personalise"}
-      </p>
     </div>
   );
 }
