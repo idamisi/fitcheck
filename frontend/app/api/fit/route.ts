@@ -7,8 +7,10 @@ export type CatalogItem = {
   id: string;
   name: string;
   category: string;
+  gender?: string;
   color: string;
   styleTags: string[];
+  imageUrl?: string;
   sizeChartRef?: string;
   measurements?: GarmentMeasurements;
 };

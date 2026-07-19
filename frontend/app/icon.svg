@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Body silhouette — matches Avatar.tsx palette -->
+  <!-- Head -->
+  <ellipse cx="16" cy="7" rx="4" ry="5" fill="#2B3A55"/>
+  <!-- Torso -->
+  <path d="M11 13 C11 18 10 20 10 23 L22 23 C22 20 21 18 21 13 Z" fill="#2B3A55"/>
+  <!-- Legs -->
+  <rect x="11" y="23" width="4" height="7" rx="1" fill="#2B3A55"/>
+  <rect x="17" y="23" width="4" height="7" rx="1" fill="#2B3A55"/>
+</svg>

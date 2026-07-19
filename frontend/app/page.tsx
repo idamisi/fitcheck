@@ -23,6 +23,15 @@ export default function Home() {
   const [measurements, setMeasurements] = useState<Measurements>(EMPTY);
   const measured = hasMeasurements(measurements);
 
+  function saveMeasurements(m: Measurements) {
+    try {
+      sessionStorage.setItem("fitcheck_measurements", JSON.stringify(m));
+    } catch {
+      // sessionStorage unavailable — silently skip
+    }
+    setMeasurements(m);
+  }
+
   // ── Screen 1: Landing ──────────────────────────────────────────────────────
   if (screen === "landing") {
     return (
@@ -75,7 +84,7 @@ export default function Home() {
         /* Choice screen — centred, takes all available vertical space */
         <div className="flex flex-col items-center justify-center flex-1 w-full max-w-sm gap-4">
           <p className="text-base font-medium" style={{ color: "#1A1A1A" }}>How would you like to enter your measurements?</p>
-          <MeasurementForm onSubmit={setMeasurements} />
+          <MeasurementForm onSubmit={saveMeasurements} />
         </div>
       ) : (
         /* Result screen — avatar + button, tightly grouped, centred */
