@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import catalog, { CatalogItem } from "../data/catalog";
 import type { FitOutput } from "../api/fit/route";
+import type { SearchOutput } from "../api/search/route";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -31,8 +32,7 @@ const LABEL: Record<string, string> = {
   formal: "Formal",
 };
 
-// ─── measurements passed via search params (set by the avatar screen) ────────
-// We read from sessionStorage so the catalog page stays independent of routing.
+// ─── measurements stored in sessionStorage by page.tsx ───────────────────────
 function getStoredMeasurements() {
   if (typeof window === "undefined") return null;
   try {
@@ -43,7 +43,7 @@ function getStoredMeasurements() {
   }
 }
 
-// ─── component ───────────────────────────────────────────────────────────────
+// ─── shared pill button ───────────────────────────────────────────────────────
 
 const BTN_BASE =
   "px-3 py-1 text-xs font-medium rounded-full border transition-colors focus:outline-none focus-visible:ring-2";
@@ -72,11 +72,21 @@ function FilterPill({
   );
 }
 
+// ─── types ────────────────────────────────────────────────────────────────────
+
 type FitState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "done"; data: FitOutput; item: CatalogItem }
   | { status: "error"; message: string };
+
+type SearchState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "done"; data: SearchOutput; query: string }
+  | { status: "error"; message: string };
+
+// ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function CatalogPage() {
   const [category, setCategory] = useState<CategoryFilter>("all");
@@ -84,8 +94,14 @@ export default function CatalogPage() {
   const [style, setStyle] = useState<StyleFilter>("all");
   const [fit, setFit] = useState<FitState>({ status: "idle" });
 
-  // ── filtered items ──────────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
+  // ── search state ───────────────────────────────────────────────────────────
+  const [searchState, setSearchState] = useState<SearchState>({ status: "idle" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [budgetNoteDismissed, setBudgetNoteDismissed] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── manual-filter pass ─────────────────────────────────────────────────────
+  const manualFiltered = useMemo(() => {
     return catalog.filter((item) => {
       if (category !== "all" && item.category !== category) return false;
       if (gender !== "all" && item.gender !== gender) return false;
@@ -94,7 +110,74 @@ export default function CatalogPage() {
     });
   }, [category, gender, style]);
 
-  // ── fit-check call ──────────────────────────────────────────────────────────
+  // ── search result ordering ─────────────────────────────────────────────────
+  // Strategy: show matched items first (in ranked order), then the remaining
+  // manual-filtered items below a divider — dimmed but still browsable.
+  // This is less jarring than hiding non-matches entirely.
+  const { matchedItems, restItems, matchReasons } = useMemo(() => {
+    if (searchState.status !== "done") {
+      return { matchedItems: manualFiltered, restItems: [] as CatalogItem[], matchReasons: {} as Record<string, string> };
+    }
+
+    const matchIds = new Set(searchState.data.matches.map((m) => m.id));
+    const reasons: Record<string, string> = {};
+    for (const m of searchState.data.matches) reasons[m.id] = m.reason;
+
+    // Ranked order: preserve the order the model returned
+    const ranked = searchState.data.matches
+      .map((m) => manualFiltered.find((item) => item.id === m.id))
+      .filter((item): item is CatalogItem => item != null);
+
+    const rest = manualFiltered.filter((item) => !matchIds.has(item.id));
+
+    return { matchedItems: ranked, restItems: rest, matchReasons: reasons };
+  }, [searchState, manualFiltered]);
+
+  const totalVisible = matchedItems.length + restItems.length;
+
+  // ── search call ────────────────────────────────────────────────────────────
+  async function runSearch(q: string) {
+    if (!q.trim()) return;
+    setBudgetNoteDismissed(false);
+    setSearchState({ status: "loading" });
+
+    const activeFilters: Record<string, string> = {};
+    if (category !== "all") activeFilters.category = category;
+    if (gender !== "all") activeFilters.gender = gender;
+    if (style !== "all") activeFilters.style = style;
+
+    try {
+      const res = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: q,
+          catalog,
+          activeFilters: Object.keys(activeFilters).length ? activeFilters : undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        setSearchState({ status: "error", message: err.error ?? "Search failed." });
+        return;
+      }
+
+      const data: SearchOutput = await res.json();
+      setSearchState({ status: "done", data, query: q });
+    } catch {
+      setSearchState({ status: "error", message: "Network error — please try again." });
+    }
+  }
+
+  function clearSearch() {
+    setSearchQuery("");
+    setSearchState({ status: "idle" });
+    setBudgetNoteDismissed(false);
+    inputRef.current?.focus();
+  }
+
+  // ── fit-check call ─────────────────────────────────────────────────────────
   async function checkFit(item: CatalogItem) {
     const measurements = getStoredMeasurements();
     if (!measurements) {
@@ -136,20 +219,24 @@ export default function CatalogPage() {
     }
   }
 
-  // ── recommendation items (resolved from catalog) ───────────────────────────
+  // ── recommendation items resolved from catalog ─────────────────────────────
   const recoItems =
     fit.status === "done"
       ? fit.data.recommendations
-          .map((r) => ({
-            ...r,
-            catalogItem: catalog.find((c) => c.id === r.id),
-          }))
+          .map((r) => ({ ...r, catalogItem: catalog.find((c) => c.id === r.id) }))
           .filter((r) => r.catalogItem != null)
       : [];
+
+  // budget note to show (if search returned one and it hasn't been dismissed)
+  const budgetNote =
+    searchState.status === "done" && searchState.data.note && !budgetNoteDismissed
+      ? searchState.data.note
+      : null;
 
   // ────────────────────────────────────────────────────────────────────────────
   return (
     <main className="min-h-screen flex flex-col" style={{ background: "#FAFAF8" }}>
+
       {/* ── Header ── */}
       <header
         className="sticky top-0 z-20 flex items-center justify-between px-6 py-3 border-b"
@@ -166,22 +253,120 @@ export default function CatalogPage() {
           Back
         </Link>
         <span className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
-          Catalog <span style={{ color: "#9CA3AF" }}>({filtered.length})</span>
+          Catalog <span style={{ color: "#9CA3AF" }}>({totalVisible})</span>
         </span>
       </header>
 
-      {/* ── Filters ── */}
+      {/* ── Search input ── */}
       <div
-        className="sticky top-[49px] z-10 px-6 py-3 border-b flex flex-col gap-2"
+        className="sticky top-[49px] z-10 px-6 pt-3 pb-2 border-b"
         style={{ background: "#FAFAF8", borderColor: "#E5E7EB" }}
       >
-        {/* Category row */}
+        <form
+          onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }}
+          className="flex items-center gap-2"
+        >
+          <div className="relative flex-1">
+            {/* search icon */}
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+              width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Describe what you're looking for…"
+              className="w-full pl-8 pr-8 py-2 text-sm rounded-lg border focus:outline-none"
+              style={{ borderColor: "#D1D5DB", background: "#fff", color: "#1A1A1A" }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#2B3A55")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "#D1D5DB")}
+            />
+            {/* clear button — only shown when there's text */}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                aria-label="Clear search"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={searchState.status === "loading" || !searchQuery.trim()}
+            className="flex-shrink-0 px-4 py-2 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2 disabled:opacity-40"
+            style={{ background: "#2B3A55", color: "#fff", borderColor: "#2B3A55" }}
+          >
+            {searchState.status === "loading" ? (
+              <span className="flex items-center gap-1.5">
+                <Spinner size={12} color="#fff" /> Searching…
+              </span>
+            ) : "Search"}
+          </button>
+        </form>
+
+        {/* search error */}
+        {searchState.status === "error" && (
+          <p className="mt-2 text-xs font-medium" style={{ color: "#B91C1C" }}>
+            {searchState.message}
+          </p>
+        )}
+
+        {/* budget note */}
+        {budgetNote && (
+          <div
+            className="mt-2 flex items-start justify-between gap-2 px-3 py-2 rounded-lg text-xs"
+            style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}
+          >
+            <span>{budgetNote}</span>
+            <button
+              onClick={() => setBudgetNoteDismissed(true)}
+              aria-label="Dismiss"
+              className="flex-shrink-0 mt-0.5"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* active search label */}
+        {searchState.status === "done" && (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-xs" style={{ color: "#2B3A55" }}>
+              <span className="font-semibold">{matchedItems.length}</span> matches for &ldquo;{searchState.query}&rdquo;
+            </span>
+            <button
+              onClick={clearSearch}
+              className="text-xs underline"
+              style={{ color: "#9CA3AF" }}
+            >
+              clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Filters ── */}
+      <div
+        className="px-6 py-3 border-b flex flex-col gap-2"
+        style={{ background: "#FAFAF8", borderColor: "#E5E7EB" }}
+      >
         <div className="flex flex-wrap gap-1.5">
           {CATEGORIES.map((c) => (
             <FilterPill key={c} label={LABEL[c]} active={category === c} onClick={() => setCategory(c)} />
           ))}
         </div>
-        {/* Gender + Style rows */}
         <div className="flex flex-wrap gap-1.5">
           {GENDERS.map((g) => (
             <FilterPill key={g} label={LABEL[g]} active={gender === g} onClick={() => setGender(g)} />
@@ -195,16 +380,57 @@ export default function CatalogPage() {
 
       {/* ── Grid ── */}
       <div className="flex-1 px-4 py-6">
-        {filtered.length === 0 ? (
+        {totalVisible === 0 ? (
           <p className="text-sm text-center mt-12" style={{ color: "#9CA3AF" }}>
             No items match the selected filters.
           </p>
         ) : (
-          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
-            {filtered.map((item) => (
-              <ItemCard key={item.id} item={item} onFitCheck={checkFit} />
-            ))}
-          </div>
+          <>
+            {/* matched items — full opacity */}
+            {matchedItems.length > 0 && (
+              <div
+                className="grid gap-4"
+                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}
+              >
+                {matchedItems.map((item) => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    onFitCheck={checkFit}
+                    searchReason={matchReasons[item.id]}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* remaining items — dimmed below a divider */}
+            {restItems.length > 0 && (
+              <>
+                {matchedItems.length > 0 && (
+                  <div className="flex items-center gap-3 my-6">
+                    <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+                    <span className="text-xs flex-shrink-0" style={{ color: "#9CA3AF" }}>
+                      {searchState.status === "done"
+                        ? "More items"
+                        : "All items"}
+                    </span>
+                    <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+                  </div>
+                )}
+                <div
+                  className="grid gap-4"
+                  style={{
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                    opacity: searchState.status === "done" ? 0.45 : 1,
+                  }}
+                >
+                  {restItems.map((item) => (
+                    <ItemCard key={item.id} item={item} onFitCheck={checkFit} />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
 
@@ -225,9 +451,11 @@ export default function CatalogPage() {
 function ItemCard({
   item,
   onFitCheck,
+  searchReason,
 }: {
   item: CatalogItem;
   onFitCheck: (item: CatalogItem) => void;
+  searchReason?: string;
 }) {
   return (
     <div
@@ -236,7 +464,7 @@ function ItemCard({
     >
       <div className="relative w-full" style={{ paddingBottom: "120%", background: "#F3F4F6" }}>
         <Image
-          src={item.imageUrl!}
+          src={item.imageUrl}
           alt={item.name}
           fill
           sizes="(max-width: 640px) 50vw, 200px"
@@ -262,6 +490,15 @@ function ItemCard({
             </span>
           ))}
         </div>
+        {/* AI search reason — only shown when this card is a search match */}
+        {searchReason && (
+          <p
+            className="text-[10px] leading-snug pt-1 mt-0.5 border-t"
+            style={{ color: "#4B5563", borderColor: "#E5E7EB" }}
+          >
+            {searchReason}
+          </p>
+        )}
         <button
           onClick={() => onFitCheck(item)}
           className="mt-2 w-full py-1.5 text-xs font-semibold rounded border transition-colors focus:outline-none focus-visible:ring-2"
@@ -296,18 +533,15 @@ function FitPanel({
 }) {
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-30"
         style={{ background: "rgba(0,0,0,0.35)" }}
         onClick={onClose}
       />
-      {/* Drawer */}
       <div
         className="fixed bottom-0 left-0 right-0 z-40 rounded-t-2xl flex flex-col max-h-[85vh] overflow-y-auto"
         style={{ background: "#FAFAF8", boxShadow: "0 -4px 24px rgba(0,0,0,0.12)" }}
       >
-        {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full" style={{ background: "#D1D5DB" }} />
         </div>
@@ -335,7 +569,6 @@ function FitPanel({
 
           {fit.status === "done" && (
             <>
-              {/* Selected item header */}
               <div className="flex items-center gap-3 pt-1">
                 <div
                   className="relative flex-shrink-0 rounded overflow-hidden border"
@@ -358,7 +591,6 @@ function FitPanel({
                 </div>
               </div>
 
-              {/* Fit description */}
               {fit.data.fitDescription && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#2B3A55" }}>
@@ -370,7 +602,6 @@ function FitPanel({
                 </div>
               )}
 
-              {/* Recommendations */}
               {recoItems.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "#2B3A55" }}>
@@ -430,15 +661,15 @@ function FitPanel({
 
 // ─── Spinner ─────────────────────────────────────────────────────────────────
 
-function Spinner() {
+function Spinner({ size = 24, color = "#2B3A55" }: { size?: number; color?: string }) {
   return (
     <svg
       className="animate-spin"
-      width="24"
-      height="24"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#2B3A55"
+      stroke={color}
       strokeWidth="2"
     >
       <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
