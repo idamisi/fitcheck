@@ -125,7 +125,15 @@ const EST_STEPS: EstStepMeta[] = [
 
 const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL"] as const;
 
-type Screen = "choice" | "estimate" | "manual";
+const EST_LOADING_MESSAGES = [
+  "Finding your fit...",
+  "Matching your measurements...",
+  "Crunching the numbers...",
+  "Consulting the tape measure gods...",
+  "Almost there...",
+];
+
+type Screen = "choice" | "estimate" | "estimate-loading" | "manual";
 
 type Props = {
   onSubmit: (measurements: Measurements) => void;
@@ -209,6 +217,17 @@ export default function MeasurementForm({ onSubmit }: Props) {
   const [estComment,    setEstComment]    = useState("");
   const [estError,      setEstError]      = useState<string | null>(null);
   const [estShowFaq,    setEstShowFaq]    = useState(false);
+  const [estLoadingMsg, setEstLoadingMsg] = useState(0);
+
+  // Cycle the full-screen loading message while the estimate call is in flight.
+  useEffect(() => {
+    if (screen !== "estimate-loading") return;
+    setEstLoadingMsg(0);
+    const id = setInterval(() => {
+      setEstLoadingMsg((i) => (i + 1) % EST_LOADING_MESSAGES.length);
+    }, 1700);
+    return () => clearInterval(id);
+  }, [screen]);
 
   // ── helpers ───────────────────────────────────────────────────────────────
   function openManual(prefill: Measurements = EMPTY) {
@@ -257,6 +276,43 @@ export default function MeasurementForm({ onSubmit }: Props) {
     setEstError(null);
     setEstShowFaq(false);
     setEstStep((s) => s + 1);
+  }
+
+  async function handleEstSubmit() {
+    const err = validateEstStep();
+    if (err) { setEstError(err); return; }
+    setEstError(null);
+    setScreen("estimate-loading");
+
+    try {
+      const res = await fetch("/api/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          height: parseFloat(estHeight),
+          weight: parseFloat(estWeight),
+          usualTopSize: estTopSize,
+          usualBottomSize: estBottomSize,
+          usualShoeSize: estShoeSize,
+          fitComment: estComment,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Estimate failed — please try again.");
+
+      openManual({
+        height: parseFloat(estHeight),
+        shoulderWidth: data.shoulderWidth,
+        chest: data.chest,
+        waist: data.waist,
+        hip: data.hip,
+        inseam: data.inseam,
+      });
+    } catch (e) {
+      setEstError(e instanceof Error ? e.message : "Estimate failed — please try again.");
+      setScreen("estimate");
+    }
   }
 
   function handleEstBack() {
@@ -515,11 +571,10 @@ export default function MeasurementForm({ onSubmit }: Props) {
                     Back
                   </button>
                   {estIsLast ? (
-                    /* TODO: wire to /api/estimate once /api/fit and watsonx.ai client are built */
                     <button
                       type="button"
-                      disabled
-                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white opacity-40 cursor-not-allowed"
+                      onClick={handleEstSubmit}
+                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
                     >
                       Estimate & Review
                     </button>
@@ -534,6 +589,16 @@ export default function MeasurementForm({ onSubmit }: Props) {
                   )}
                 </div>
               </>
+            )}
+
+            {/* ── ESTIMATE LOADING (full-screen takeover) ─────────────────── */}
+            {screen === "estimate-loading" && (
+              <div className="flex flex-col items-center justify-center gap-4 min-h-[240px]">
+                <div className="h-9 w-9 rounded-full border-2 border-zinc-200 border-t-zinc-900 animate-spin" />
+                <p className="text-sm text-zinc-500 text-center leading-relaxed">
+                  {EST_LOADING_MESSAGES[estLoadingMsg]}
+                </p>
+              </div>
             )}
 
             {/* ── MANUAL STEP MODAL ─────────────────────────────────────── */}
