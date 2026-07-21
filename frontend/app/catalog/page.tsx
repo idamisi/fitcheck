@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import catalog, { CatalogItem } from "../data/catalog";
 import type { FitOutput } from "../api/fit/route";
 import type { SearchOutput } from "../api/search/route";
@@ -89,6 +89,7 @@ type SearchState =
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function CatalogPage() {
+  const router = useRouter();
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [gender, setGender] = useState<GenderFilter>("all");
   const [style, setStyle] = useState<StyleFilter>("all");
@@ -242,16 +243,16 @@ export default function CatalogPage() {
         className="sticky top-0 z-20 flex items-center justify-between px-6 py-3 border-b"
         style={{ background: "#FAFAF8", borderColor: "#E5E7EB" }}
       >
-        <Link
-          href="/"
+        <button
+          onClick={() => router.back()}
           className="flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded"
           style={{ color: "#2B3A55" }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "#1A1A1A")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "#2B3A55")}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#1A1A1A")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#2B3A55")}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           Back
-        </Link>
+        </button>
         <span className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
           Catalog <span style={{ color: "#9CA3AF" }}>({totalVisible})</span>
         </span>
