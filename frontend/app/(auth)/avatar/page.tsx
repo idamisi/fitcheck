@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Avatar from "../components/Avatar";
-import { createClient } from "../lib/supabase";
-import type { Measurements } from "../components/MeasurementForm";
+import Avatar from "../../components/Avatar";
+import { createClient } from "../../lib/supabase";
+import type { Measurements } from "../../components/MeasurementForm";
 
 const EMPTY: Measurements = {
   height: 0,

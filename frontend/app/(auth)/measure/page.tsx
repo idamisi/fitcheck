@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import MeasurementForm, { Measurements } from "../components/MeasurementForm";
-import { createClient } from "../lib/supabase";
+import MeasurementForm, { Measurements } from "../../components/MeasurementForm";
+import { createClient } from "../../lib/supabase";
 
 const BTN_BACK_STYLE: React.CSSProperties = { color: "#2B3A55" };
 

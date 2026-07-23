@@ -137,6 +137,10 @@ type Screen = "choice" | "estimate" | "estimate-loading" | "manual";
 
 type Props = {
   onSubmit: (measurements: Measurements) => void;
+  /** If true, skip the choice screen and open the manual flow immediately. */
+  defaultOpen?: boolean;
+  /** Pre-fill values for the manual flow when defaultOpen is true. */
+  defaultValues?: Measurements;
 };
 
 // ─── EstFaqTooltip ────────────────────────────────────────────────────────────
@@ -196,14 +200,14 @@ function EstFaqTooltip({ faq, open, onToggle, onClose }: EstFaqTooltipProps) {
   );
 }
 
-export default function MeasurementForm({ onSubmit }: Props) {
+export default function MeasurementForm({ onSubmit, defaultOpen = false, defaultValues }: Props) {
   // ── shared modal state ────────────────────────────────────────────────────
-  const [isOpen, setIsOpen] = useState(false);
-  const [screen, setScreen] = useState<Screen>("choice");
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [screen, setScreen] = useState<Screen>(defaultOpen ? "manual" : "choice");
 
   // ── manual modal state ────────────────────────────────────────────────────
   const [step, setStep]             = useState(0);
-  const [values, setValues]         = useState<Measurements>(EMPTY);
+  const [values, setValues]         = useState<Measurements>(defaultValues ?? EMPTY);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
 

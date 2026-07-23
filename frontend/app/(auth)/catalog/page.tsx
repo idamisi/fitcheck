@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import catalog, { CatalogItem } from "../data/catalog";
-import type { FitOutput } from "../api/fit/route";
-import type { SearchOutput } from "../api/search/route";
+import catalog, { CatalogItem } from "../../data/catalog";
+import type { FitOutput } from "../../api/fit/route";
+import type { SearchOutput } from "../../api/search/route";
+import { createClient } from "../../lib/supabase";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -90,6 +91,8 @@ type SearchState =
 
 export default function CatalogPage() {
   const router = useRouter();
+  const supabase = createClient();
+
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [gender, setGender] = useState<GenderFilter>("all");
   const [style, setStyle] = useState<StyleFilter>("all");
@@ -100,6 +103,51 @@ export default function CatalogPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [budgetNoteDismissed, setBudgetNoteDismissed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── saved items ────────────────────────────────────────────────────────────
+  // Map of catalog_item_id → saved_items row id (for deletion)
+  const [savedMap, setSavedMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace("/"); return; }
+
+      const { data } = await supabase
+        .from("saved_items")
+        .select("id, catalog_item_id")
+        .eq("user_id", user.id);
+
+      const map: Record<string, string> = {};
+      for (const row of data ?? []) map[row.catalog_item_id] = row.id;
+      setSavedMap(map);
+    }
+    init();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggleSave(itemId: string) {
+    const existingRowId = savedMap[itemId];
+
+    if (existingRowId) {
+      // Optimistic unsave
+      setSavedMap((prev) => { const next = { ...prev }; delete next[itemId]; return next; });
+      await supabase.from("saved_items").delete().eq("id", existingRowId);
+    } else {
+      // Optimistic save — use a temp key until the real row id comes back
+      const tempKey = `temp-${itemId}`;
+      setSavedMap((prev) => ({ ...prev, [itemId]: tempKey }));
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: inserted } = await supabase
+        .from("saved_items")
+        .insert({ user_id: user.id, catalog_item_id: itemId })
+        .select("id")
+        .single();
+      if (inserted) {
+        setSavedMap((prev) => ({ ...prev, [itemId]: inserted.id }));
+      }
+    }
+  }
 
   // ── manual-filter pass ─────────────────────────────────────────────────────
   const manualFiltered = useMemo(() => {
@@ -256,6 +304,8 @@ export default function CatalogPage() {
         <span className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
           Catalog <span style={{ color: "#9CA3AF" }}>({totalVisible})</span>
         </span>
+        {/* AccountDropdown rendered by (auth)/layout.tsx */}
+        <div style={{ width: 40 }} />
       </header>
 
       {/* ── Search input ── */}
@@ -379,6 +429,18 @@ export default function CatalogPage() {
         </div>
       </div>
 
+      {/* ── Search-first tagline — shown when no search is active ── */}
+      {searchState.status === "idle" && !searchQuery && (
+        <div className="px-6 pt-6 pb-2">
+          <p className="text-2xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>
+            See what fits.
+          </p>
+          <p className="text-sm mt-1" style={{ color: "#9CA3AF" }}>
+            Describe what you&apos;re looking for, or browse below.
+          </p>
+        </div>
+      )}
+
       {/* ── Grid ── */}
       <div className="flex-1 px-4 py-6">
         {totalVisible === 0 ? (
@@ -399,6 +461,8 @@ export default function CatalogPage() {
                     item={item}
                     onFitCheck={checkFit}
                     searchReason={matchReasons[item.id]}
+                    saved={item.id in savedMap}
+                    onToggleSave={() => toggleSave(item.id)}
                   />
                 ))}
               </div>
@@ -426,7 +490,13 @@ export default function CatalogPage() {
                   }}
                 >
                   {restItems.map((item) => (
-                    <ItemCard key={item.id} item={item} onFitCheck={checkFit} />
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      onFitCheck={checkFit}
+                      saved={item.id in savedMap}
+                      onToggleSave={() => toggleSave(item.id)}
+                    />
                   ))}
                 </div>
               </>
@@ -453,16 +523,21 @@ function ItemCard({
   item,
   onFitCheck,
   searchReason,
+  saved,
+  onToggleSave,
 }: {
   item: CatalogItem;
   onFitCheck: (item: CatalogItem) => void;
   searchReason?: string;
+  saved: boolean;
+  onToggleSave: () => void;
 }) {
   return (
     <div
       className="flex flex-col rounded-lg overflow-hidden border"
       style={{ borderColor: "#E5E7EB", background: "#fff" }}
     >
+      {/* Image wrapper — heart button overlaid top-right */}
       <div className="relative w-full" style={{ paddingBottom: "120%", background: "#F3F4F6" }}>
         <Image
           src={item.imageUrl}
@@ -472,6 +547,24 @@ function ItemCard({
           className="object-cover"
           unoptimized
         />
+        <button
+          onClick={onToggleSave}
+          aria-label={saved ? `Unsave ${item.name}` : `Save ${item.name}`}
+          className="absolute top-2 right-2 rounded-full p-1 focus:outline-none focus-visible:ring-2 transition-colors"
+          style={{ background: "rgba(255,255,255,0.85)" }}
+        >
+          {saved ? (
+            /* filled heart */
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#2B3A55" stroke="none">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+          ) : (
+            /* outline heart */
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+          )}
+        </button>
       </div>
       <div className="flex flex-col gap-1.5 p-3 flex-1">
         <p className="text-xs font-medium leading-snug" style={{ color: "#1A1A1A" }}>
