@@ -32,6 +32,45 @@ function isValidEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(v.trim());
 }
 
+// Converts any Supabase AuthError into a human-readable string.
+//
+// Two confirmed failure modes for this project:
+//
+//   status=500, message="{}"
+//     The SDK throws AuthRetryableFetchError *before* parsing the response body,
+//     so JSON.stringify(fetchResponse) === "{}" is all we get.  The actual
+//     Supabase body is {"message":"Error sending magic link email"} — the email
+//     provider (SMTP) is not configured in the Supabase dashboard.
+//
+//   status=422, message="Signups not allowed for otp", error_code="otp_disabled"
+//     Email OTP is disabled in Authentication → Providers → Email inside the
+//     Supabase dashboard.
+//
+// For anything else the raw SDK message is returned as-is.
+function normaliseAuthError(err: { message?: string; status?: number } | null | undefined): string {
+  if (!err) return "Something went wrong — please try again.";
+  const status = err.status ?? 0;
+  const raw    = typeof err.message === "string" ? err.message.trim() : "";
+
+  // Rate-limit (429 or keyword)
+  if (status === 429 || raw.toLowerCase().includes("rate limit") || raw.toLowerCase().includes("rate_limit")) {
+    return "Too many attempts — please wait a few minutes and try again.";
+  }
+
+  // 5xx / network error — SDK gives "{}" because it never parsed the body.
+  // Real cause: SMTP not configured in Supabase dashboard.
+  if (raw === "" || raw === "{}") {
+    return "Email sending failed. The email provider (SMTP) may not be configured — check Authentication → Settings → SMTP in the Supabase dashboard.";
+  }
+
+  // OTP disabled in Supabase dashboard
+  if (raw.toLowerCase().includes("otp") && raw.toLowerCase().includes("disabled")) {
+    return "Email sign-in is disabled. Enable it in Authentication → Providers → Email in the Supabase dashboard.";
+  }
+
+  return raw;
+}
+
 const GENDER_OPTIONS: { value: "men" | "women"; label: string }[] = [
   { value: "men",   label: "Men" },
   { value: "women", label: "Women" },
@@ -140,7 +179,7 @@ export default function Home() {
     });
 
     setLoading(false);
-    if (otpError) { setError(otpError.message); return; }
+    if (otpError) { setError(normaliseAuthError(otpError)); return; }
     setLoginScreen("otp");
   }
 
@@ -192,6 +231,7 @@ export default function Home() {
       setError(!regGender ? "Please select your gender." : "Please enter your name.");
       return;
     }
+    setRegEmailError(null);
     setError(null);
     setRegScreen("email");
   }
@@ -202,6 +242,7 @@ export default function Home() {
   async function handleRegEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
     setRegEmailError(null);
+    setError(null);
 
     if (!isValidEmail(regEmail)) {
       setRegEmailError("Enter a valid email address.");
@@ -212,7 +253,6 @@ export default function Home() {
       return;
     }
 
-    setError(null);
     setLoading(true);
 
     const { error: otpError } = await supabase.auth.signInWithOtp({
@@ -221,7 +261,7 @@ export default function Home() {
     });
 
     setLoading(false);
-    if (otpError) { setError(otpError.message); return; }
+    if (otpError) { setError(normaliseAuthError(otpError)); return; }
     setRegScreen("otp");
   }
 
@@ -469,24 +509,11 @@ export default function Home() {
   }
 
   if (regScreen === "email") {
-    // emailTouched: show format error only after the user has left the field at
-    // least once, so we don't fire instantly while they're still typing.
     const emailTouched   = regEmail.length > 0;
     const emailInvalid   = emailTouched && !isValidEmail(regEmail);
     const confirmTouched = regEmailConfirm.length > 0;
     const mismatch       = confirmTouched && regEmail.toLowerCase() !== regEmailConfirm.toLowerCase();
     const canSubmit      = !loading && isValidEmail(regEmail) && !mismatch && regEmailConfirm.length > 0;
-
-    // Shown when the user clicks Send while the button should be disabled
-    // (shouldn't normally be reachable since the button is disabled, but
-    // belt-and-suspenders for any edge case where the form submits anyway).
-    const submitBlockReason = !isValidEmail(regEmail)
-      ? "Enter a valid email address (e.g. you@example.com)."
-      : mismatch
-      ? "Your emails don\u2019t match — please check and try again."
-      : regEmailConfirm.length === 0
-      ? "Please confirm your email address."
-      : null;
 
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-6 relative" style={{ background: "#FAFAF8" }}>
@@ -496,11 +523,7 @@ export default function Home() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (!canSubmit) {
-                // Surface the reason so a disabled-button click still explains itself
-                setRegEmailError(submitBlockReason);
-                return;
-              }
+              if (!canSubmit) return;
               handleRegEmailSubmit(e);
             }}
             className="flex flex-col gap-3 w-full"
@@ -508,7 +531,7 @@ export default function Home() {
             <div className="flex flex-col gap-1">
               <input
                 type="email" value={regEmail}
-                onChange={(e) => { setRegEmail(e.target.value); setRegEmailError(null); }}
+                onChange={(e) => { setRegEmail(e.target.value); setRegEmailError(null); setError(null); }}
                 onBlur={() => {
                   // Show format error as soon as the user leaves the field
                   if (regEmail.length > 0 && !isValidEmail(regEmail)) {
@@ -530,7 +553,7 @@ export default function Home() {
             <div className="flex flex-col gap-1">
               <input
                 type="email" value={regEmailConfirm}
-                onChange={(e) => { setRegEmailConfirm(e.target.value); setRegEmailError(null); }}
+                onChange={(e) => { setRegEmailConfirm(e.target.value); setRegEmailError(null); setError(null); }}
                 placeholder="Confirm email address"
                 className="w-full px-4 py-2.5 text-sm rounded border focus:outline-none"
                 style={INPUT_STYLE}
@@ -545,12 +568,16 @@ export default function Home() {
             </div>
 
             {/* Server/submit-level errors (OTP send failure, or submit-while-invalid) */}
-            {regEmailError && <p className="text-xs text-left" style={{ color: "#B91C1C" }}>{regEmailError}</p>}
-            {error && <p className="text-xs text-left" style={{ color: "#B91C1C" }}>{error}</p>}
+            {!!regEmailError && typeof regEmailError === "string" && (
+              <p className="text-xs text-left" style={{ color: "#B91C1C" }}>{regEmailError}</p>
+            )}
+            {!!error && typeof error === "string" && (
+              <p className="text-xs text-left" style={{ color: "#B91C1C" }}>{error}</p>
+            )}
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={!canSubmit}
               className="px-8 py-2.5 text-sm font-semibold rounded transition-colors focus:outline-none focus-visible:ring-2 disabled:opacity-40"
               style={BTN_PRIMARY}
               onMouseEnter={(e) => !loading && (e.currentTarget.style.background = "#EEF1F6")}
