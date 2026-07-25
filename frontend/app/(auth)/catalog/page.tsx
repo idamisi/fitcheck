@@ -7,6 +7,7 @@ import catalog, { CatalogItem } from "../../data/catalog";
 import type { FitOutput } from "../../api/fit/route";
 import type { SearchOutput } from "../../api/search/route";
 import { createClient } from "../../lib/supabase";
+import AccountDropdown from "../../components/AccountDropdown";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -64,8 +65,8 @@ function FilterPill({
       className={BTN_BASE}
       style={
         active
-          ? { background: "#2B3A55", color: "#fff", borderColor: "#2B3A55" }
-          : { background: "#fff", color: "#2B3A55", borderColor: "#2B3A55" }
+          ? { background: "var(--accent)", color: "var(--accent-text)", borderColor: "var(--accent)" }
+          : { background: "var(--surface)", color: "var(--text)", borderColor: "var(--border)" }
       }
     >
       {label}
@@ -105,8 +106,8 @@ export default function CatalogPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // ── saved items ────────────────────────────────────────────────────────────
-  // Map of catalog_item_id → saved_items row id (for deletion)
   const [savedMap, setSavedMap] = useState<Record<string, string>>({});
+
 
   useEffect(() => {
     async function init() {
@@ -295,25 +296,30 @@ export default function CatalogPage() {
 
   // ────────────────────────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen flex flex-col" style={{ background: "#FAFAF8" }}>
+    <main className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
+
+      {/* Account dropdown — fixed top-right */}
+      <div className="fixed top-0 right-0 z-30 px-5 py-3" style={{ pointerEvents: "none" }}>
+        <div style={{ pointerEvents: "auto" }}><AccountDropdown /></div>
+      </div>
 
       {/* ── Header ── */}
       <header
         className="sticky top-0 z-20 flex items-center justify-between px-6 py-3 border-b"
-        style={{ background: "#FAFAF8", borderColor: "#E5E7EB" }}
+        style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
         <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded"
-          style={{ color: "#2B3A55" }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#1A1A1A")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#2B3A55")}
+          onClick={() => router.push("/home")}
+          className="flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded-lg"
+          style={{ color: "var(--text-muted)" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           Back
         </button>
-        <span className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
-          Catalog <span style={{ color: "#9CA3AF" }}>({totalVisible})</span>
+        <span className="text-sm font-semibold font-heading" style={{ color: "var(--text)" }}>
+          Catalog <span style={{ color: "var(--text-muted)" }}>({totalVisible})</span>
         </span>
         {/* AccountDropdown rendered by (auth)/layout.tsx */}
         <div style={{ width: 40 }} />
@@ -322,18 +328,17 @@ export default function CatalogPage() {
       {/* ── Search input ── */}
       <div
         className="sticky top-[49px] z-10 px-6 pt-3 pb-2 border-b"
-        style={{ background: "#FAFAF8", borderColor: "#E5E7EB" }}
+        style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
         <form
           onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }}
           className="flex items-center gap-2"
         >
           <div className="relative flex-1">
-            {/* search icon */}
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
               width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
             >
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -342,13 +347,12 @@ export default function CatalogPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Describe what you're looking for…"
+              placeholder="Piece it together…"
               className="w-full pl-8 pr-8 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ borderColor: "#D1D5DB", background: "#fff", color: "#1A1A1A" }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "#2B3A55")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "#D1D5DB")}
+              style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text)" }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
             />
-            {/* clear button — only shown when there's text */}
             {searchQuery && (
               <button
                 type="button"
@@ -356,7 +360,7 @@ export default function CatalogPage() {
                 className="absolute right-2.5 top-1/2 -translate-y-1/2"
                 aria-label="Clear search"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
@@ -366,35 +370,29 @@ export default function CatalogPage() {
             type="submit"
             disabled={searchState.status === "loading" || !searchQuery.trim()}
             className="flex-shrink-0 px-4 py-2 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2 disabled:opacity-40"
-            style={{ background: "#2B3A55", color: "#fff", borderColor: "#2B3A55" }}
+            style={{ background: "var(--accent)", color: "var(--accent-text)", borderColor: "var(--accent)" }}
           >
             {searchState.status === "loading" ? (
               <span className="flex items-center gap-1.5">
-                <Spinner size={12} color="#fff" /> Searching…
+                <Spinner size={12} color="var(--accent-text)" /> Searching…
               </span>
             ) : "Search"}
           </button>
         </form>
 
-        {/* search error */}
         {searchState.status === "error" && (
-          <p className="mt-2 text-xs font-medium" style={{ color: "#B91C1C" }}>
+          <p className="mt-2 text-xs font-medium" style={{ color: "var(--danger)" }}>
             {searchState.message}
           </p>
         )}
 
-        {/* budget note */}
         {budgetNote && (
           <div
             className="mt-2 flex items-start justify-between gap-2 px-3 py-2 rounded-lg text-xs"
             style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}
           >
             <span>{budgetNote}</span>
-            <button
-              onClick={() => setBudgetNoteDismissed(true)}
-              aria-label="Dismiss"
-              className="flex-shrink-0 mt-0.5"
-            >
+            <button onClick={() => setBudgetNoteDismissed(true)} aria-label="Dismiss" className="flex-shrink-0 mt-0.5">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -402,17 +400,12 @@ export default function CatalogPage() {
           </div>
         )}
 
-        {/* active search label */}
         {searchState.status === "done" && (
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs" style={{ color: "#2B3A55" }}>
+            <span className="text-xs" style={{ color: "var(--text)" }}>
               <span className="font-semibold">{matchedItems.length}</span> matches for &ldquo;{searchState.query}&rdquo;
             </span>
-            <button
-              onClick={clearSearch}
-              className="text-xs underline"
-              style={{ color: "#9CA3AF" }}
-            >
+            <button onClick={clearSearch} className="text-xs underline" style={{ color: "var(--text-muted)" }}>
               clear
             </button>
           </div>
@@ -422,7 +415,7 @@ export default function CatalogPage() {
       {/* ── Filters ── */}
       <div
         className="px-6 py-3 border-b flex flex-col gap-2"
-        style={{ background: "#FAFAF8", borderColor: "#E5E7EB" }}
+        style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
         <div className="flex flex-wrap gap-1.5">
           {CATEGORIES.map((c) => (
@@ -433,20 +426,20 @@ export default function CatalogPage() {
           {GENDERS.map((g) => (
             <FilterPill key={g} label={LABEL[g]} active={gender === g} onClick={() => setGender(g)} />
           ))}
-          <span className="self-center text-xs" style={{ color: "#D1D5DB" }}>|</span>
+          <span className="self-center text-xs" style={{ color: "var(--border)" }}>|</span>
           {STYLES.map((s) => (
             <FilterPill key={s} label={LABEL[s]} active={style === s} onClick={() => setStyle(s)} />
           ))}
         </div>
       </div>
 
-      {/* ── Search-first tagline — shown when no search is active ── */}
+      {/* ── Search-first tagline ── */}
       {searchState.status === "idle" && !searchQuery && (
         <div className="px-6 pt-6 pb-2">
-          <p className="text-2xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>
-            See what fits.
+          <p className="text-2xl font-bold tracking-tight font-heading" style={{ color: "var(--text)" }}>
+            Piece it together.
           </p>
-          <p className="text-sm mt-1" style={{ color: "#9CA3AF" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             Describe what you&apos;re looking for, or browse below.
           </p>
         </div>
@@ -455,17 +448,13 @@ export default function CatalogPage() {
       {/* ── Grid ── */}
       <div className="flex-1 px-4 py-6">
         {totalVisible === 0 ? (
-          <p className="text-sm text-center mt-12" style={{ color: "#9CA3AF" }}>
+          <p className="text-sm text-center mt-12" style={{ color: "var(--text-muted)" }}>
             No items match the selected filters.
           </p>
         ) : (
           <>
-            {/* matched items — full opacity */}
             {matchedItems.length > 0 && (
-              <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}
-              >
+              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
                 {matchedItems.map((item) => (
                   <ItemCard
                     key={item.id}
@@ -479,18 +468,15 @@ export default function CatalogPage() {
               </div>
             )}
 
-            {/* remaining items — dimmed below a divider */}
             {restItems.length > 0 && (
               <>
                 {matchedItems.length > 0 && (
                   <div className="flex items-center gap-3 my-6">
-                    <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
-                    <span className="text-xs flex-shrink-0" style={{ color: "#9CA3AF" }}>
-                      {searchState.status === "done"
-                        ? "More items"
-                        : "All items"}
+                    <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+                    <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                      {searchState.status === "done" ? "More items" : "All items"}
                     </span>
-                    <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+                    <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
                   </div>
                 )}
                 <div
@@ -545,11 +531,10 @@ function ItemCard({
 }) {
   return (
     <div
-      className="flex flex-col rounded-lg overflow-hidden border"
-      style={{ borderColor: "#E5E7EB", background: "#fff" }}
+      className="flex flex-col rounded-2xl overflow-hidden border"
+      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
     >
-      {/* Image wrapper — heart button overlaid top-right */}
-      <div className="relative w-full" style={{ paddingBottom: "120%", background: "#F3F4F6" }}>
+      <div className="relative w-full" style={{ paddingBottom: "120%", background: "var(--bg)" }}>
         <Image
           src={item.imageUrl}
           alt={item.name}
@@ -565,51 +550,46 @@ function ItemCard({
           style={{ background: "rgba(255,255,255,0.85)" }}
         >
           {saved ? (
-            /* filled heart */
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#2B3A55" stroke="none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)" stroke="none">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
             </svg>
           ) : (
-            /* outline heart */
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
             </svg>
           )}
         </button>
       </div>
       <div className="flex flex-col gap-1.5 p-3 flex-1">
-        <p className="text-xs font-medium leading-snug" style={{ color: "#1A1A1A" }}>
+        <p className="text-xs font-medium leading-snug" style={{ color: "var(--text)" }}>
           {item.name}
         </p>
-        <p className="text-xs capitalize" style={{ color: "#9CA3AF" }}>
+        <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
           {item.color}
         </p>
         <div className="flex flex-wrap gap-1 mt-auto pt-1">
           {item.styleTags.map((t) => (
             <span
               key={t}
-              className="text-[10px] px-1.5 py-0.5 rounded"
-              style={{ background: "#EEF1F6", color: "#2B3A55" }}
+              className="text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)" }}
             >
               {t}
             </span>
           ))}
         </div>
-        {/* AI search reason — only shown when this card is a search match */}
         {searchReason && (
           <p
             className="text-[10px] leading-snug pt-1 mt-0.5 border-t"
-            style={{ color: "#4B5563", borderColor: "#E5E7EB" }}
+            style={{ color: "var(--text-muted)", borderColor: "var(--border)" }}
           >
             {searchReason}
           </p>
         )}
         <button
           onClick={() => onFitCheck(item)}
-          className="mt-2 w-full py-1.5 text-xs font-semibold rounded border transition-colors focus:outline-none focus-visible:ring-2"
-          style={{ background: "#FFFFFF", color: "#2B3A55", borderColor: "#2B3A55" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF1F6")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
+          className="mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2"
+          style={{ background: "var(--accent)", color: "var(--accent-text)", borderColor: "var(--accent)" }}
         >
           Check Fit
         </button>
@@ -640,32 +620,32 @@ function FitPanel({
     <>
       <div
         className="fixed inset-0 z-30"
-        style={{ background: "rgba(0,0,0,0.35)" }}
+        style={{ background: "rgba(11,26,51,0.45)" }}
         onClick={onClose}
       />
       <div
         className="fixed bottom-0 left-0 right-0 z-40 rounded-t-2xl flex flex-col max-h-[85vh] overflow-y-auto"
-        style={{ background: "#FAFAF8", boxShadow: "0 -4px 24px rgba(0,0,0,0.12)" }}
+        style={{ background: "var(--surface)", borderTop: "1px solid var(--border)" }}
       >
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full" style={{ background: "#D1D5DB" }} />
+          <div className="w-10 h-1 rounded-full" style={{ background: "var(--border)" }} />
         </div>
 
         <div className="px-5 pb-8 flex flex-col gap-5">
           {fit.status === "loading" && (
             <div className="flex flex-col items-center py-10 gap-3">
               <Spinner />
-              <p className="text-sm" style={{ color: "#2B3A55" }}>Analysing fit…</p>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Analysing fit…</p>
             </div>
           )}
 
           {fit.status === "error" && (
             <div className="py-8 text-center">
-              <p className="text-sm font-medium" style={{ color: "#B91C1C" }}>{fit.message}</p>
+              <p className="text-sm font-medium" style={{ color: "var(--danger)" }}>{fit.message}</p>
               <button
                 onClick={onClose}
-                className="mt-4 px-6 py-2 text-sm rounded border"
-                style={{ borderColor: "#2B3A55", color: "#2B3A55" }}
+                className="mt-4 px-6 py-2 text-sm rounded-lg border"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
                 Close
               </button>
@@ -676,32 +656,25 @@ function FitPanel({
             <>
               <div className="flex items-center gap-3 pt-1">
                 <div
-                  className="relative flex-shrink-0 rounded overflow-hidden border"
-                  style={{ width: 56, height: 68, borderColor: "#E5E7EB" }}
+                  className="relative flex-shrink-0 rounded-xl overflow-hidden border"
+                  style={{ width: 56, height: 68, borderColor: "var(--border)" }}
                 >
                   {fit.item.imageUrl && (
-                    <Image
-                      src={fit.item.imageUrl}
-                      alt={fit.item.name}
-                      fill
-                      sizes="56px"
-                      className="object-cover"
-                      unoptimized
-                    />
+                    <Image src={fit.item.imageUrl} alt={fit.item.name} fill sizes="56px" className="object-cover" unoptimized />
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>{fit.item.name}</p>
-                  <p className="text-xs capitalize" style={{ color: "#9CA3AF" }}>{fit.item.color}</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{fit.item.name}</p>
+                  <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>{fit.item.color}</p>
                 </div>
               </div>
 
               {fit.data.fitDescription && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#2B3A55" }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>
                     Fit Details
                   </p>
-                  <p className="text-sm leading-relaxed" style={{ color: "#374151" }}>
+                  <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
                     {fit.data.fitDescription}
                   </p>
                 </div>
@@ -709,37 +682,30 @@ function FitPanel({
 
               {recoItems.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "#2B3A55" }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "var(--accent)" }}>
                     Pairs Well With
                   </p>
                   <div className="flex flex-col gap-3">
                     {recoItems.map((r) => (
                       <div
                         key={r.id}
-                        className="flex gap-3 p-3 rounded-lg border"
-                        style={{ borderColor: "#E5E7EB", background: "#fff" }}
+                        className="flex gap-3 p-3 rounded-xl border"
+                        style={{ borderColor: "var(--border)", background: "var(--bg)" }}
                       >
                         {r.catalogItem?.imageUrl && (
                           <div
-                            className="relative flex-shrink-0 rounded overflow-hidden border"
-                            style={{ width: 52, height: 64, borderColor: "#E5E7EB" }}
+                            className="relative flex-shrink-0 rounded-lg overflow-hidden border"
+                            style={{ width: 52, height: 64, borderColor: "var(--border)" }}
                           >
-                            <Image
-                              src={r.catalogItem.imageUrl}
-                              alt={r.name}
-                              fill
-                              sizes="52px"
-                              className="object-cover"
-                              unoptimized
-                            />
+                            <Image src={r.catalogItem.imageUrl} alt={r.name} fill sizes="52px" className="object-cover" unoptimized />
                           </div>
                         )}
                         <div className="flex flex-col gap-0.5">
-                          <p className="text-xs font-semibold" style={{ color: "#1A1A1A" }}>{r.name}</p>
+                          <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{r.name}</p>
                           {r.catalogItem && (
-                            <p className="text-xs capitalize" style={{ color: "#9CA3AF" }}>{r.catalogItem.color}</p>
+                            <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>{r.catalogItem.color}</p>
                           )}
-                          <p className="text-xs leading-snug mt-0.5" style={{ color: "#374151" }}>{r.reason}</p>
+                          <p className="text-xs leading-snug mt-0.5" style={{ color: "var(--text-muted)" }}>{r.reason}</p>
                         </div>
                       </div>
                     ))}
@@ -749,10 +715,8 @@ function FitPanel({
 
               <button
                 onClick={onClose}
-                className="mt-1 w-full py-2.5 text-sm font-semibold rounded border transition-colors"
-                style={{ borderColor: "#2B3A55", color: "#2B3A55", background: "#fff" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF1F6")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                className="mt-1 w-full py-2.5 text-sm font-semibold rounded-lg border transition-colors"
+                style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--bg)" }}
               >
                 Close
               </button>
@@ -766,7 +730,7 @@ function FitPanel({
 
 // ─── Spinner ─────────────────────────────────────────────────────────────────
 
-function Spinner({ size = 24, color = "#2B3A55" }: { size?: number; color?: string }) {
+function Spinner({ size = 24, color = "var(--accent)" }: { size?: number; color?: string }) {
   return (
     <svg
       className="animate-spin"

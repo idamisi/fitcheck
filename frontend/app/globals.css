@@ -1,9 +1,33 @@
 @import "tailwindcss";
 
+/* ─── Design tokens (light only — no dark mode) ────────────────────────────── */
 :root {
-  --font-sans: var(--font-geist-sans);
+  /* fonts */
+  --font-heading: var(--font-manrope), "Manrope", system-ui, sans-serif;
+  --font-body:    var(--font-inter),   "Inter",   system-ui, sans-serif;
+
+  /* palette */
+  --bg:          #F7F5F1;   /* off-white page background */
+  --surface:     #FFFFFF;   /* cards / panels */
+  --border:      #E2DDD6;   /* 1px borders */
+  --text:        #0B1A33;   /* deep navy — primary text */
+  --text-muted:  #6B7280;   /* secondary / label text */
+  --accent:      #8FB7FF;   /* ice blue — buttons, links, badges */
+  --accent-text: #0B1A33;   /* text ON an ice-blue button */
+  --danger:      #B91C1C;   /* errors */
 }
 
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
+html { height: 100%; }
+
 body {
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100%;
+}
+
+h1, h2, h3, h4, h5, h6,
+.font-heading {
+  font-family: var(--font-heading);
 }

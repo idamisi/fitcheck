@@ -7,19 +7,27 @@ import { createClient } from "../lib/supabase";
 export default function AccountDropdown() {
   const router = useRouter();
   const supabase = createClient();
-  const [email, setEmail] = useState<string | null>(null);
+  // display_name from profiles table; null until loaded; false = loaded but absent
+  const [displayName, setDisplayName] = useState<string | null | false>(null);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Load the signed-in user's email once on mount
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.email) setEmail(user.email);
-    });
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setDisplayName(false); return; }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      setDisplayName(profile?.display_name ?? false);
+    }
+    load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close on outside click — deferred by one tick so the toggle click
-  // doesn't immediately re-close the menu.
   useEffect(() => {
     if (!open) return;
     let id: ReturnType<typeof setTimeout>;
@@ -41,33 +49,24 @@ export default function AccountDropdown() {
     router.replace("/");
   }
 
-  // Not signed in or email not yet loaded — render nothing
-  if (!email) return null;
+  // Still loading — render nothing to avoid flash
+  if (displayName === null) return null;
 
-  const displayLabel = email.includes("@") ? email.split("@")[0] : email;
+  const displayLabel = displayName || "Account";
 
   return (
     <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-sm font-medium rounded focus:outline-none focus-visible:ring-2 transition-colors"
-        style={{ color: "#2B3A55" }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = "#1A1A1A")}
-        onMouseLeave={(e) => (e.currentTarget.style.color = "#2B3A55")}
+        className="flex items-center gap-1.5 text-sm font-medium rounded-lg focus:outline-none focus-visible:ring-2 transition-colors px-3 py-1.5"
+        style={{ color: "var(--text)", background: "var(--surface)", border: "1px solid var(--border)" }}
         aria-haspopup="true"
         aria-expanded={open}
       >
         <span className="max-w-[120px] truncate">{displayLabel}</span>
-        {/* chevron */}
         <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
         >
           <polyline points="6 9 12 15 18 9" />
@@ -76,32 +75,32 @@ export default function AccountDropdown() {
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1.5 w-44 rounded-lg border shadow-sm z-50 overflow-hidden"
-          style={{ background: "#fff", borderColor: "#E5E7EB" }}
+          className="absolute right-0 top-full mt-1.5 w-48 rounded-xl border z-50 overflow-hidden"
+          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           {[
-            { label: "Saved Items",  href: "/saved" },
-            { label: "Measurements", href: "/account/measurements" },
+            { label: "Saved Items",   href: "/saved" },
+            { label: "Measurements",  href: "/account/measurements" },
           ].map(({ label, href }) => (
             <button
               key={href}
               onClick={() => { setOpen(false); router.push(href); }}
               className="w-full text-left px-4 py-2.5 text-sm transition-colors focus:outline-none"
-              style={{ color: "#1A1A1A" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#F7F8FA")}
+              style={{ color: "var(--text)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "")}
             >
               {label}
             </button>
           ))}
 
-          <div style={{ height: 1, background: "#E5E7EB" }} />
+          <div style={{ height: 1, background: "var(--border)" }} />
 
           <button
             onClick={handleSignOut}
             className="w-full text-left px-4 py-2.5 text-sm transition-colors focus:outline-none"
-            style={{ color: "#B91C1C" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#FEF2F2")}
+            style={{ color: "var(--danger)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "")}
           >
             Sign Out

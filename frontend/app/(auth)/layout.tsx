@@ -1,27 +1,12 @@
-import AccountDropdown from "../components/AccountDropdown";
-
 // ─── Authenticated shell layout ───────────────────────────────────────────────
 // Wraps every authenticated route (/measure, /avatar, /catalog, /saved,
-// /account/measurements) with a persistent top bar that shows the account
-// dropdown. The (auth) route group has no effect on URLs.
+// /account/measurements, /home) with a plain pass-through.
+// The (auth) route group has no effect on URLs.
+//
+// AccountDropdown is NOT injected here — each page mounts it where it belongs:
+//   - /home   → built into the page's own nav
+//   - all others → fixed top-right overlay injected per-page
 
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <>
-      {/* Persistent account bar — fixed top-right, above all page content */}
-      <div
-        className="fixed top-0 right-0 z-30 px-5 py-3"
-        style={{ pointerEvents: "none" }}
-      >
-        <div style={{ pointerEvents: "auto" }}>
-          <AccountDropdown />
-        </div>
-      </div>
-      {children}
-    </>
-  );
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }

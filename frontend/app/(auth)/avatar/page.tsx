@@ -5,14 +5,10 @@ import { useRouter } from "next/navigation";
 import Avatar from "../../components/Avatar";
 import { createClient } from "../../lib/supabase";
 import type { Measurements } from "../../components/MeasurementForm";
+import AccountDropdown from "../../components/AccountDropdown";
 
 const EMPTY: Measurements = {
-  height: 0,
-  shoulderWidth: 0,
-  chest: 0,
-  waist: 0,
-  hip: 0,
-  inseam: 0,
+  height: 0, shoulderWidth: 0, chest: 0, waist: 0, hip: 0, inseam: 0,
 };
 
 export default function AvatarPage() {
@@ -21,27 +17,15 @@ export default function AvatarPage() {
   const [measurements, setMeasurements] = useState<Measurements>(EMPTY);
   const [ready, setReady] = useState(false);
 
-  // ── Auth gate + load measurements ────────────────────────────────────────
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.replace("/");
-        return;
-      }
+      if (!user) { router.replace("/"); return; }
 
-      // Prefer sessionStorage (already set by /measure) for instant render.
-      // Fall back to Supabase if e.g. the user navigated here directly.
       try {
         const raw = sessionStorage.getItem("fitcheck_measurements");
-        if (raw) {
-          setMeasurements(JSON.parse(raw));
-          setReady(true);
-          return;
-        }
-      } catch {
-        // ignore
-      }
+        if (raw) { setMeasurements(JSON.parse(raw)); setReady(true); return; }
+      } catch { /* ignore */ }
 
       const { data: row } = await supabase
         .from("measurements")
@@ -58,31 +42,31 @@ export default function AvatarPage() {
           hip: row.hip ?? 0,
           inseam: row.inseam ?? 0,
         };
-        try {
-          sessionStorage.setItem("fitcheck_measurements", JSON.stringify(m));
-        } catch {
-          // not critical
-        }
+        try { sessionStorage.setItem("fitcheck_measurements", JSON.stringify(m)); } catch { /* not critical */ }
         setMeasurements(m);
       }
-
       setReady(true);
     }
-
     init();
   }, [router, supabase]);
 
   if (!ready) return null;
 
   return (
-    <main className="flex flex-col items-center min-h-screen p-8 relative" style={{ background: "#FAFAF8" }}>
+    <main className="flex flex-col items-center min-h-screen p-8 relative" style={{ background: "var(--bg)" }}>
+
+      {/* Account dropdown — fixed top-right */}
+      <div className="fixed top-0 right-0 z-30 px-5 py-3" style={{ pointerEvents: "none" }}>
+        <div style={{ pointerEvents: "auto" }}><AccountDropdown /></div>
+      </div>
+
       <button
-        onClick={() => router.back()}
+        onClick={() => router.push("/home")}
         aria-label="Back"
-        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded"
-        style={{ color: "#2B3A55" }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = "#1A1A1A")}
-        onMouseLeave={(e) => (e.currentTarget.style.color = "#2B3A55")}
+        className="absolute top-6 left-6 flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded-lg"
+        style={{ color: "var(--text-muted)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
+        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="15 18 9 12 15 6" />
@@ -91,18 +75,16 @@ export default function AvatarPage() {
       </button>
 
       <div className="flex flex-col items-center justify-center flex-1 gap-3 mt-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#2B3A55" }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wider font-heading" style={{ color: "var(--text-muted)" }}>
           Your Avatar
         </h2>
         <Avatar measurements={measurements} />
         <button
-          onClick={() => router.push("/catalog")}
-          className="px-8 py-2.5 text-sm font-semibold rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-          style={{ background: "#FFFFFF", color: "#2B3A55", border: "1.5px solid #2B3A55" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF1F6")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
+          onClick={() => router.replace("/home")}
+          className="px-8 py-3 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2"
+          style={{ background: "var(--accent)", color: "var(--accent-text)", border: "1.5px solid var(--accent)" }}
         >
-          See What Fits
+          Let's go
         </button>
       </div>
     </main>
