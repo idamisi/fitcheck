@@ -27,9 +27,9 @@ const BTN_PRIMARY: React.CSSProperties = {
   border: "1.5px solid #2B3A55",
 };
 
-// Standard email format check — covers the vast majority of valid addresses.
+// Requires a proper domain with a TLD of 2+ letters — rejects "123@damisi".
 function isValidEmail(v: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+  return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(v.trim());
 }
 
 const GENDER_OPTIONS: { value: "men" | "women"; label: string }[] = [
@@ -373,9 +373,11 @@ export default function Home() {
         <BackButton onClick={() => { setLoginScreen("email"); setLoginOtp(""); setError(null); }} />
         <div className="flex flex-col items-center gap-6 text-center w-full max-w-xs">
           <div className="flex flex-col items-center gap-2">
-            <h2 className="text-2xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>Check your email</h2>
+            <h2 className="text-2xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>
+              Enter the code we sent to sign you in
+            </h2>
             <p className="text-sm" style={{ color: "#2B3A55" }}>
-              We sent a code to <span className="font-medium">{loginEmail}</span>
+              Sent to <span className="font-medium">{loginEmail}</span>
             </p>
           </div>
           <form onSubmit={handleLoginOtpSubmit} className="flex flex-col gap-3 w-full">
@@ -395,7 +397,7 @@ export default function Home() {
               onMouseEnter={(e) => !loading && (e.currentTarget.style.background = "#EEF1F6")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
             >
-              {loading ? "Verifying…" : "Verify"}
+              {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
           <button onClick={() => handleLoginEmailSubmit({ preventDefault: () => {} } as React.FormEvent)}
@@ -467,30 +469,60 @@ export default function Home() {
   }
 
   if (regScreen === "email") {
-    // Confirm field only shows an error once the user has typed something in it
+    // emailTouched: show format error only after the user has left the field at
+    // least once, so we don't fire instantly while they're still typing.
+    const emailTouched   = regEmail.length > 0;
+    const emailInvalid   = emailTouched && !isValidEmail(regEmail);
     const confirmTouched = regEmailConfirm.length > 0;
-    const mismatch = confirmTouched && regEmail.toLowerCase() !== regEmailConfirm.toLowerCase();
-    const canSubmit = !loading && isValidEmail(regEmail) && !mismatch && regEmailConfirm.length > 0;
+    const mismatch       = confirmTouched && regEmail.toLowerCase() !== regEmailConfirm.toLowerCase();
+    const canSubmit      = !loading && isValidEmail(regEmail) && !mismatch && regEmailConfirm.length > 0;
+
+    // Shown when the user clicks Send while the button should be disabled
+    // (shouldn't normally be reachable since the button is disabled, but
+    // belt-and-suspenders for any edge case where the form submits anyway).
+    const submitBlockReason = !isValidEmail(regEmail)
+      ? "Enter a valid email address (e.g. you@example.com)."
+      : mismatch
+      ? "Your emails don\u2019t match — please check and try again."
+      : regEmailConfirm.length === 0
+      ? "Please confirm your email address."
+      : null;
 
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-6 relative" style={{ background: "#FAFAF8" }}>
         <BackButton onClick={() => { setRegScreen("details"); setRegEmailError(null); setError(null); }} />
         <div className="flex flex-col items-center gap-6 text-center w-full max-w-xs">
           <h2 className="text-2xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>Your email</h2>
-          <form onSubmit={handleRegEmailSubmit} className="flex flex-col gap-3 w-full">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!canSubmit) {
+                // Surface the reason so a disabled-button click still explains itself
+                setRegEmailError(submitBlockReason);
+                return;
+              }
+              handleRegEmailSubmit(e);
+            }}
+            className="flex flex-col gap-3 w-full"
+          >
             <div className="flex flex-col gap-1">
               <input
                 type="email" value={regEmail}
                 onChange={(e) => { setRegEmail(e.target.value); setRegEmailError(null); }}
+                onBlur={() => {
+                  // Show format error as soon as the user leaves the field
+                  if (regEmail.length > 0 && !isValidEmail(regEmail)) {
+                    setRegEmailError("Enter a valid email address (e.g. you@example.com).");
+                  }
+                }}
                 placeholder="your@email.com" required autoFocus
                 className="w-full px-4 py-2.5 text-sm rounded border focus:outline-none"
                 style={INPUT_STYLE}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "#2B3A55")}
-                onBlur={(e)  => (e.currentTarget.style.borderColor = "#D1D5DB")}
               />
-              {regEmail.length > 0 && !isValidEmail(regEmail) && (
+              {emailInvalid && !regEmailError && (
                 <p className="text-xs text-left" style={{ color: "#B91C1C" }}>
-                  Enter a valid email address.
+                  Enter a valid email address (e.g. you@example.com).
                 </p>
               )}
             </div>
@@ -512,14 +544,16 @@ export default function Home() {
               )}
             </div>
 
-            {/* Server/submit-level errors (e.g. OTP send failed) */}
+            {/* Server/submit-level errors (OTP send failure, or submit-while-invalid) */}
             {regEmailError && <p className="text-xs text-left" style={{ color: "#B91C1C" }}>{regEmailError}</p>}
             {error && <p className="text-xs text-left" style={{ color: "#B91C1C" }}>{error}</p>}
 
-            <button type="submit" disabled={!canSubmit}
+            <button
+              type="submit"
+              disabled={loading}
               className="px-8 py-2.5 text-sm font-semibold rounded transition-colors focus:outline-none focus-visible:ring-2 disabled:opacity-40"
               style={BTN_PRIMARY}
-              onMouseEnter={(e) => canSubmit && (e.currentTarget.style.background = "#EEF1F6")}
+              onMouseEnter={(e) => !loading && (e.currentTarget.style.background = "#EEF1F6")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
             >
               {loading ? "Sending…" : "Send code"}
@@ -536,9 +570,11 @@ export default function Home() {
       <BackButton onClick={() => { setRegScreen("email"); setRegOtp(""); setError(null); }} />
       <div className="flex flex-col items-center gap-6 text-center w-full max-w-xs">
         <div className="flex flex-col items-center gap-2">
-          <h2 className="text-2xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>Check your email</h2>
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: "#1A1A1A" }}>
+            Enter the code we sent to confirm your account
+          </h2>
           <p className="text-sm" style={{ color: "#2B3A55" }}>
-            We sent a code to <span className="font-medium">{regEmail}</span>
+            Sent to <span className="font-medium">{regEmail}</span>
           </p>
           {regIsExisting && (
             <p className="text-xs mt-1 px-3 py-1.5 rounded-lg" style={{ background: "#FEF3C7", color: "#92400E" }}>
@@ -563,7 +599,7 @@ export default function Home() {
             onMouseEnter={(e) => !loading && (e.currentTarget.style.background = "#EEF1F6")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
           >
-            {loading ? "Verifying…" : "Verify"}
+            {loading ? "Confirming…" : "Confirm account"}
           </button>
         </form>
         <button onClick={() => handleRegEmailSubmit({ preventDefault: () => {} } as React.FormEvent)}
