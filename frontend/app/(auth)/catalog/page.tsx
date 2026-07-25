@@ -113,6 +113,17 @@ export default function CatalogPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/"); return; }
 
+      // Seed gender filter from the user's profile preference
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("gender")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile?.gender === "men" || profile?.gender === "women") {
+        setGender(profile.gender);
+      }
+
       const { data } = await supabase
         .from("saved_items")
         .select("id, catalog_item_id")

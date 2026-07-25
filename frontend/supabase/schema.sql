@@ -8,9 +8,11 @@
 -- One row per auth user. Created on first sign-in from the app.
 
 create table if not exists profiles (
-  id         uuid primary key references auth.users on delete cascade,
-  email      text,
-  created_at timestamptz default now()
+  id           uuid primary key references auth.users on delete cascade,
+  email        text,
+  display_name text,
+  gender       text,
+  created_at   timestamptz default now()
 );
 
 alter table profiles enable row level security;

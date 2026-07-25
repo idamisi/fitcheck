@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import MeasurementReview from "./MeasurementReview";
 
 export type Measurements = {
   height: number;
@@ -133,7 +134,7 @@ const EST_LOADING_MESSAGES = [
   "Almost there...",
 ];
 
-type Screen = "choice" | "estimate" | "estimate-loading" | "manual";
+type Screen = "choice" | "estimate" | "estimate-loading" | "manual" | "review";
 
 type Props = {
   onSubmit: (measurements: Measurements) => void;
@@ -144,10 +145,6 @@ type Props = {
 };
 
 // ─── EstFaqTooltip ────────────────────────────────────────────────────────────
-// Closes on outside click without the toggle button immediately re-closing it:
-// the document listener is added on the next event-loop tick (setTimeout 0) so
-// the click that opened the tooltip has already finished propagating before the
-// outside-click handler is active.
 
 type EstFaqTooltipProps = {
   faq: string;
@@ -170,8 +167,6 @@ function EstFaqTooltip({ faq, open, onToggle, onClose }: EstFaqTooltipProps) {
       }
     }
 
-    // Defer adding the listener so the click that triggered onToggle
-    // has finished bubbling before we start listening.
     timeoutId = setTimeout(() => {
       document.addEventListener("click", handleOutsideClick);
     }, 0);
@@ -200,10 +195,14 @@ function EstFaqTooltip({ faq, open, onToggle, onClose }: EstFaqTooltipProps) {
   );
 }
 
+// ─── MeasurementForm ─────────────────────────────────────────────────────────
+
 export default function MeasurementForm({ onSubmit, defaultOpen = false, defaultValues }: Props) {
   // ── shared modal state ────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [screen, setScreen] = useState<Screen>(defaultOpen ? "manual" : "choice");
+  // Track whether the manual flow was entered from the review screen (for Back)
+  const [fromReview, setFromReview] = useState(false);
 
   // ── manual modal state ────────────────────────────────────────────────────
   const [step, setStep]             = useState(0);
@@ -268,7 +267,6 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
       case "usualShoeSize":
         if (!estShoeSize.trim()) return "Shoe size is required.";
         return null;
-      // dropdowns always have a value; fitComment is optional
       default:
         return null;
     }
@@ -305,14 +303,17 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Estimate failed — please try again.");
 
-      openManual({
+      // Transition to review screen with AI-estimated values pre-filled
+      const estimated: Measurements = {
         height: parseFloat(estHeight),
         shoulderWidth: data.shoulderWidth,
         chest: data.chest,
         waist: data.waist,
         hip: data.hip,
         inseam: data.inseam,
-      });
+      };
+      setValues(estimated);
+      setScreen("review");
     } catch (e) {
       setEstError(e instanceof Error ? e.message : "Estimate failed — please try again.");
       setScreen("estimate");
@@ -360,12 +361,12 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
     setStep((s) => s - 1);
   }
 
+  // Instead of saving immediately, go to the review screen
   function handleFinish() {
     const err = validate(values[current.key]);
     if (err) { setFieldError(err); return; }
-    setIsOpen(false);
-    setStep(0);
-    onSubmit(values);
+    setFieldError(null);
+    setScreen("review");
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -373,6 +374,21 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
       e.preventDefault();
       isLast ? handleFinish() : handleNext();
     }
+  }
+
+  // ── review handlers ───────────────────────────────────────────────────────
+  // Jump to a specific manual step; mark that we came from review so Back returns there
+  function handleReviewEdit(fieldIndex: number) {
+    setStep(fieldIndex);
+    setFieldError(null);
+    setFromReview(true);
+    setScreen("manual");
+  }
+
+  function handleReviewConfirm() {
+    setIsOpen(false);
+    setScreen("choice");
+    onSubmit(values);
   }
 
   // ── render the correct input for each estimate step ───────────────────────
@@ -462,7 +478,7 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Choice buttons — rendered inline on Screen 2, not behind a modal ── */}
+      {/* ── Choice buttons — rendered inline, not behind a modal ── */}
       {screen === "choice" && (
         <div className="flex flex-col gap-3 w-full">
           <button
@@ -489,13 +505,13 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
           >
             Estimate my measurements
             <span className="block text-xs font-normal mt-0.5" style={{ color: "#2B3A55", opacity: 0.7 }}>
-              Tell us your size and we'll estimate
+              Tell us your size and we&apos;ll estimate
             </span>
           </button>
         </div>
       )}
 
-      {/* Modal backdrop — used for manual + estimate step flows */}
+      {/* Modal backdrop — used for manual, estimate, and review flows */}
       {isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -508,7 +524,9 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
               aria-label="Close"
               className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-700 transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
             </button>
 
             {/* ── CHOICE SCREEN (fallback — should not normally render) ─── */}
@@ -519,7 +537,6 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
             {/* ── ESTIMATE STEP FLOW ────────────────────────────────────── */}
             {screen === "estimate" && (
               <>
-                {/* Progress dots */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-zinc-400 font-medium">
                     Step {estStep + 1} of {EST_STEPS.length}
@@ -529,21 +546,15 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                       <span
                         key={i}
                         className={`block h-2 w-2 rounded-full transition-colors ${
-                          i < estStep
-                            ? "bg-zinc-900"
-                            : i === estStep
-                            ? "bg-zinc-600"
-                            : "bg-zinc-200"
+                          i < estStep ? "bg-zinc-900" : i === estStep ? "bg-zinc-600" : "bg-zinc-200"
                         }`}
                       />
                     ))}
                   </div>
                 </div>
 
-                {/* Intro copy */}
                 <p className="text-sm text-zinc-500 leading-relaxed">{estCurrent.intro}</p>
 
-                {/* Input */}
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-zinc-700">
                     {estCurrent.label}
@@ -557,7 +568,6 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                   )}
                 </div>
 
-                {/* Per-step FAQ tooltip */}
                 <EstFaqTooltip
                   faq={estCurrent.faq}
                   open={estShowFaq}
@@ -565,29 +575,19 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                   onClose={() => setEstShowFaq(false)}
                 />
 
-                {/* Navigation */}
                 <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleEstBack}
-                    className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
-                  >
+                  <button type="button" onClick={handleEstBack}
+                    className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
                     Back
                   </button>
                   {estIsLast ? (
-                    <button
-                      type="button"
-                      onClick={handleEstSubmit}
-                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
-                    >
-                      Estimate & Review
+                    <button type="button" onClick={handleEstSubmit}
+                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors">
+                      Estimate &amp; Review
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={handleEstNext}
-                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
-                    >
+                    <button type="button" onClick={handleEstNext}
+                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors">
                       Next
                     </button>
                   )}
@@ -595,7 +595,7 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
               </>
             )}
 
-            {/* ── ESTIMATE LOADING (full-screen takeover) ─────────────────── */}
+            {/* ── ESTIMATE LOADING ──────────────────────────────────────── */}
             {screen === "estimate-loading" && (
               <div className="flex flex-col items-center justify-center gap-4 min-h-[240px]">
                 <div className="h-9 w-9 rounded-full border-2 border-zinc-200 border-t-zinc-900 animate-spin" />
@@ -605,10 +605,9 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
               </div>
             )}
 
-            {/* ── MANUAL STEP MODAL ─────────────────────────────────────── */}
+            {/* ── MANUAL STEP FLOW ──────────────────────────────────────── */}
             {screen === "manual" && (
               <>
-                {/* Progress dots */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-zinc-400 font-medium">
                     Step {step + 1} of {FIELDS.length}
@@ -618,21 +617,15 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                       <span
                         key={i}
                         className={`block h-2 w-2 rounded-full transition-colors ${
-                          i < step
-                            ? "bg-zinc-900"
-                            : i === step
-                            ? "bg-zinc-600"
-                            : "bg-zinc-200"
+                          i < step ? "bg-zinc-900" : i === step ? "bg-zinc-600" : "bg-zinc-200"
                         }`}
                       />
                     ))}
                   </div>
                 </div>
 
-                {/* Intro copy */}
                 <p className="text-sm text-zinc-500 leading-relaxed">{current.intro}</p>
 
-                {/* Input */}
                 <div className="flex flex-col gap-1">
                   <label htmlFor="modal-input" className="text-sm font-medium text-zinc-700">
                     {current.label}
@@ -650,9 +643,7 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                     onKeyDown={handleKeyDown}
                     placeholder={`${current.min}–${current.max}`}
                     className={`rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
-                      fieldError
-                        ? "border-red-400 focus:ring-red-300"
-                        : "border-zinc-300 focus:ring-zinc-400"
+                      fieldError ? "border-red-400 focus:ring-red-300" : "border-zinc-300 focus:ring-zinc-400"
                     }`}
                   />
                   {fieldError && (
@@ -660,7 +651,6 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                   )}
                 </div>
 
-                {/* Why tooltip */}
                 <EstFaqTooltip
                   faq="Real measurements mean real fit comparisons, not guesses."
                   open={showTooltip}
@@ -668,34 +658,37 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                   onClose={() => setShowTooltip(false)}
                 />
 
-                {/* Navigation buttons */}
                 <div className="flex gap-3">
                   {step > 0 ? (
-                    <button
-                      type="button"
-                      onClick={handleBack}
-                      className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
-                    >
+                    <button type="button" onClick={handleBack}
+                      className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
                       Back
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setScreen("choice")}
-                      className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
-                    >
+                    <button type="button" onClick={() => {
+                      setFieldError(null);
+                      if (fromReview) { setFromReview(false); setScreen("review"); }
+                      else setScreen("choice");
+                    }}
+                      className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
                       Back
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={isLast ? handleFinish : handleNext}
-                    className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
-                  >
-                    {isLast ? "Finish" : "Next"}
+                  <button type="button" onClick={isLast ? handleFinish : handleNext}
+                    className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors">
+                    {isLast ? "Review" : "Next"}
                   </button>
                 </div>
               </>
+            )}
+
+            {/* ── REVIEW SCREEN ─────────────────────────────────────────── */}
+            {screen === "review" && (
+              <MeasurementReview
+                values={values}
+                onEdit={handleReviewEdit}
+                onConfirm={handleReviewConfirm}
+              />
             )}
 
           </div>
