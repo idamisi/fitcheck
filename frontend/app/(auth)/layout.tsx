@@ -1,12 +1,9 @@
+import { OutfitProvider } from "../lib/outfit-context";
+
 // ─── Authenticated shell layout ───────────────────────────────────────────────
-// Wraps every authenticated route (/measure, /avatar, /catalog, /saved,
-// /account/measurements, /home) with a plain pass-through.
-// The (auth) route group has no effect on URLs.
-//
-// AccountDropdown is NOT injected here — each page mounts it where it belongs:
-//   - /home   → built into the page's own nav
-//   - all others → fixed top-right overlay injected per-page
+// Wraps every authenticated route with OutfitProvider so outfit state is
+// shared across catalog, avatar preview, and any future page in this group.
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <OutfitProvider>{children}</OutfitProvider>;
 }

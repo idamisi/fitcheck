@@ -8,6 +8,9 @@ import type { FitOutput } from "../../api/fit/route";
 import type { SearchOutput } from "../../api/search/route";
 import { createClient } from "../../lib/supabase";
 import AccountDropdown from "../../components/AccountDropdown";
+import { useOutfit } from "../../lib/outfit-context";
+import OutfitAvatarWidget from "../../components/OutfitAvatarWidget";
+import type { Measurements } from "../../components/MeasurementForm";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,11 +96,13 @@ type SearchState =
 export default function CatalogPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { toggleItem, itemInOutfit } = useOutfit();
 
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [gender, setGender] = useState<GenderFilter>("all");
   const [style, setStyle] = useState<StyleFilter>("all");
   const [fit, setFit] = useState<FitState>({ status: "idle" });
+  const [measurements, setMeasurements] = useState<Measurements | null>(null);
 
   // ── search state ───────────────────────────────────────────────────────────
   const [searchState, setSearchState] = useState<SearchState>({ status: "idle" });
@@ -133,6 +138,9 @@ export default function CatalogPage() {
       const map: Record<string, string> = {};
       for (const row of data ?? []) map[row.catalog_item_id] = row.id;
       setSavedMap(map);
+
+      // Load measurements for the outfit widget
+      setMeasurements(getStoredMeasurements());
     }
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -463,6 +471,8 @@ export default function CatalogPage() {
                     searchReason={matchReasons[item.id]}
                     saved={item.id in savedMap}
                     onToggleSave={() => toggleSave(item.id)}
+                    inOutfit={itemInOutfit(item.id)}
+                    onToggleOutfit={() => toggleItem(item)}
                   />
                 ))}
               </div>
@@ -493,6 +503,8 @@ export default function CatalogPage() {
                       onFitCheck={checkFit}
                       saved={item.id in savedMap}
                       onToggleSave={() => toggleSave(item.id)}
+                      inOutfit={itemInOutfit(item.id)}
+                      onToggleOutfit={() => toggleItem(item)}
                     />
                   ))}
                 </div>
@@ -510,6 +522,9 @@ export default function CatalogPage() {
           onClose={() => setFit({ status: "idle" })}
         />
       )}
+
+      {/* ── Outfit avatar widget — fixed bottom-right corner ── */}
+      {measurements && <OutfitAvatarWidget measurements={measurements} />}
     </main>
   );
 }
@@ -522,12 +537,16 @@ function ItemCard({
   searchReason,
   saved,
   onToggleSave,
+  inOutfit,
+  onToggleOutfit,
 }: {
   item: CatalogItem;
   onFitCheck: (item: CatalogItem) => void;
   searchReason?: string;
   saved: boolean;
   onToggleSave: () => void;
+  inOutfit: boolean;
+  onToggleOutfit: () => void;
 }) {
   return (
     <div
@@ -586,13 +605,38 @@ function ItemCard({
             {searchReason}
           </p>
         )}
-        <button
-          onClick={() => onFitCheck(item)}
-          className="mt-2 w-full py-1.5 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2"
-          style={{ background: "var(--accent)", color: "var(--accent-text)", borderColor: "var(--accent)" }}
-        >
-          Check Fit
-        </button>
+        <div className="flex gap-1.5 mt-2">
+          <button
+            onClick={() => onFitCheck(item)}
+            className="flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2"
+            style={{ background: "var(--accent)", color: "var(--accent-text)", borderColor: "var(--accent)" }}
+          >
+            Check Fit
+          </button>
+          <button
+            onClick={onToggleOutfit}
+            aria-label={inOutfit ? `Remove ${item.name} from look` : `Add ${item.name} to look`}
+            title={inOutfit ? "Remove from look" : "Add to look"}
+            className="flex-shrink-0 px-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2"
+            style={inOutfit
+              ? { background: "var(--text)", color: "var(--surface)", borderColor: "var(--text)" }
+              : { background: "var(--surface)", color: "var(--text)", borderColor: "var(--border)" }}
+          >
+            {inOutfit ? (
+              /* filled person icon */
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="12" cy="7" r="4" />
+                <path d="M12 14c-5 0-8 2.24-8 5v1h16v-1c0-2.76-3-5-8-5z" />
+              </svg>
+            ) : (
+              /* outlined person icon */
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="7" r="4" />
+                <path d="M12 14c-5 0-8 2.24-8 5v1h16v-1c0-2.76-3-5-8-5z" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
