@@ -14,7 +14,7 @@ import type { Measurements } from "../../components/MeasurementForm";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-const CATEGORIES = ["all", "top", "bottom", "outerwear"] as const;
+const CATEGORIES = ["all", "top", "bottom", "outerwear", "shoe"] as const;
 const GENDERS = ["all", "men", "women"] as const;
 const STYLES = ["all", "casual", "classic", "smart-casual", "streetwear", "sporty", "formal"] as const;
 
@@ -27,6 +27,7 @@ const LABEL: Record<string, string> = {
   top: "Tops",
   bottom: "Bottoms",
   outerwear: "Outerwear",
+  shoe: "Shoes",
   men: "Men",
   women: "Women",
   casual: "Casual",
