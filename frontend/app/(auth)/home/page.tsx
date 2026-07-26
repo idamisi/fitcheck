@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase";
 import Avatar from "../../components/Avatar";
 import AccountDropdown from "../../components/AccountDropdown";
+import FitzyChat from "../../components/FitzyChat";
+import type { FitzyChatMessage } from "../../components/FitzyChat";
 import type { Measurements } from "../../components/MeasurementForm";
+import type { FitzyOutput } from "../../api/fitzy/route";
+import catalog from "../../data/catalog";
 
 const EMPTY_M: Measurements = {
   height: 0, shoulderWidth: 0, chest: 0, waist: 0, hip: 0, inseam: 0,
@@ -18,14 +22,16 @@ export default function HomePage() {
   const [ready, setReady] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Measurements>(EMPTY_M);
-  const [chatInput, setChatInput] = useState("");
+
+  // ── Fitzy chat state ───────────────────────────────────────────────────────
+  const [messages, setMessages] = useState<FitzyChatMessage[]>([]);
+  const [fitzyLoading, setFitzyLoading] = useState(false);
 
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/"); return; }
 
-      // Load profile (display_name)
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name")
@@ -34,14 +40,9 @@ export default function HomePage() {
 
       if (profile?.display_name) setDisplayName(profile.display_name);
 
-      // Load measurements — try sessionStorage first for speed
       try {
         const raw = sessionStorage.getItem("fitcheck_measurements");
-        if (raw) {
-          setMeasurements(JSON.parse(raw));
-          setReady(true);
-          return;
-        }
+        if (raw) { setMeasurements(JSON.parse(raw)); setReady(true); return; }
       } catch { /* ignore */ }
 
       const { data: row } = await supabase
@@ -52,7 +53,7 @@ export default function HomePage() {
 
       if (row) {
         const m: Measurements = {
-          height:        row.height        ?? 0,
+          height:        row.height         ?? 0,
           shoulderWidth: row.shoulder_width ?? 0,
           chest:         row.chest          ?? 0,
           waist:         row.waist          ?? 0,
@@ -68,10 +69,62 @@ export default function HomePage() {
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleChatSubmit() {
-    if (!chatInput.trim()) return;
-    // Pass the query through to the catalog's search
-    router.push(`/catalog?q=${encodeURIComponent(chatInput.trim())}`);
+  // ── Fitzy send handler ─────────────────────────────────────────────────────
+  async function handleSend(text: string) {
+    const userMsg: FitzyChatMessage = { role: "user", content: text };
+    const next = [...messages, userMsg];
+    setMessages(next);
+    setFitzyLoading(true);
+
+    try {
+      const res = await fetch("/api/fitzy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: next.map(({ role, content }) => ({ role, content })),
+          catalog,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: err.error ?? "Fitzy's having trouble right now — try again." },
+        ]);
+        return;
+      }
+
+      const data: FitzyOutput = await res.json();
+
+      if (data.type === "search") {
+        // If search, navigate to catalog with the Fitzy reply as context
+        // Store the first search reply and item IDs for the catalog page to pick up
+        sessionStorage.setItem(
+          "fitzy_context",
+          JSON.stringify({
+            reply: data.reply,
+            itemIds: data.itemIds,
+            query: text,
+            // Store messages so catalog can continue the thread
+            messages: [...next, { role: "assistant", content: data.reply, itemIds: data.itemIds }],
+          }),
+        );
+        router.push("/catalog");
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.reply },
+        ]);
+      }
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Fitzy's having trouble right now — try again." },
+      ]);
+    } finally {
+      setFitzyLoading(false);
+    }
   }
 
   if (!ready) return null;
@@ -79,7 +132,7 @@ export default function HomePage() {
   const greeting = displayName ? `Hey, ${displayName}.` : "Hey.";
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#F7F5F1", color: "#0B1A33" }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "#F7F5F1", color: "#0B1A33" }}>
 
       {/* ── Nav ─────────────────────────────────────────────────────────────── */}
       <nav
@@ -93,94 +146,86 @@ export default function HomePage() {
         >
           FitCheck
         </button>
-
         <AccountDropdown />
       </nav>
 
-      {/* ── Hero ────────────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6 gap-10 py-16">
+      {/* ── Two-column layout ────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-0 min-h-0">
 
-        <div className="flex flex-col items-center gap-4 text-center max-w-md">
-          <h1
-            className="text-4xl font-bold tracking-tight leading-tight"
-            style={{ fontFamily: "var(--font-heading)", color: "#0B1A33" }}
-          >
-            {greeting}
-          </h1>
-          <p className="text-base leading-relaxed" style={{ color: "#6B7280" }}>
-            Your avatar is ready. Ask Fitzy what you should wear.
-          </p>
-        </div>
-
-        {/* ── Avatar ──────────────────────────────────────────────────────── */}
-        <div
-          className="cursor-pointer"
-          onClick={() => router.push("/avatar")}
-          title="View your avatar"
-        >
-          <Avatar measurements={measurements} />
-        </div>
-
-        {/* ── Fitzy chat input ─────────────────────────────────────────────── */}
-        <div className="w-full max-w-md flex flex-col gap-2">
-          <p className="text-xs font-medium text-left" style={{ color: "#6B7280" }}>
-            Ask Fitzy anything about your wardrobe
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleChatSubmit(); }}
-              placeholder="e.g. What should I wear to a smart-casual dinner?"
-              className="flex-1 px-4 py-2.5 text-sm rounded-lg border focus:outline-none"
-              style={{ background: "#FFFFFF", border: "1px solid #E2DDD6", color: "#0B1A33" }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-              onBlur={(e)  => (e.currentTarget.style.borderColor = "#E2DDD6")}
-            />
-            <button
-              onClick={handleChatSubmit}
-              className="px-4 py-2.5 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors"
-              style={{ background: "#8FB7FF", color: "#0B1A33", border: "1.5px solid #8FB7FF" }}
+        {/* ── Left: hero + avatar ─────────────────────────────────────────── */}
+        <div className="flex flex-col items-center justify-center px-6 py-10 gap-6 lg:w-80 lg:flex-shrink-0 lg:border-r overflow-y-auto" style={{ borderColor: "#E2DDD6" }}>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <h1
+              className="text-3xl font-bold tracking-tight leading-tight"
+              style={{ fontFamily: "var(--font-heading)", color: "#0B1A33" }}
             >
-              Ask
+              {greeting}
+            </h1>
+            <p className="text-sm leading-relaxed" style={{ color: "#6B7280" }}>
+              Tell Fitzy what you need.
+            </p>
+          </div>
+
+          {/* Avatar — click to view full avatar page */}
+          <div
+            className="cursor-pointer"
+            onClick={() => router.push("/avatar")}
+            title="View your avatar"
+          >
+            <Avatar measurements={measurements} />
+          </div>
+
+          {/* Quick-links */}
+          <div className="flex flex-col gap-2 w-full max-w-[220px]">
+            <button
+              onClick={() => router.push("/saved")}
+              className="text-xs font-medium py-2 rounded-lg border transition-colors focus:outline-none"
+              style={{ background: "#FFFFFF", color: "#0B1A33", border: "1px solid #E2DDD6" }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+            >
+              Saved items
+            </button>
+            <button
+              onClick={() => router.push("/avatar")}
+              className="text-xs font-medium py-2 rounded-lg border transition-colors focus:outline-none"
+              style={{ background: "#FFFFFF", color: "#0B1A33", border: "1px solid #E2DDD6" }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+            >
+              Your avatar
             </button>
           </div>
         </div>
 
-        {/* ── Feature cards ────────────────────────────────────────────────── */}
-        <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-          {/* Your avatar card */}
-          <button
-            onClick={() => router.push("/avatar")}
-            className="flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
-            style={{ background: "#FFFFFF", border: "1px solid #E2DDD6" }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+        {/* ── Right: Fitzy chat ────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Chat header */}
+          <div
+            className="flex-shrink-0 px-5 py-3 border-b"
+            style={{ borderColor: "#E2DDD6" }}
           >
-            <span className="text-sm font-semibold" style={{ color: "#0B1A33" }}>Your avatar</span>
-            <span className="text-xs leading-relaxed" style={{ color: "#6B7280" }}>
-              A 3D model built around your exact measurements.
-            </span>
-          </button>
+            <p className="text-sm font-semibold" style={{ color: "#0B1A33", fontFamily: "var(--font-heading)" }}>
+              Fitzy
+            </p>
+            <p className="text-xs" style={{ color: "#6B7280" }}>
+              Ask me anything — I&apos;ll find what fits.
+            </p>
+          </div>
 
-          {/* Saved items card */}
-          <button
-            onClick={() => router.push("/saved")}
-            className="flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
-            style={{ background: "#FFFFFF", border: "1px solid #E2DDD6" }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
-          >
-            <span className="text-sm font-semibold" style={{ color: "#0B1A33" }}>Saved items</span>
-            <span className="text-xs leading-relaxed" style={{ color: "#6B7280" }}>
-              Everything you&apos;ve hearted. Come back to it when you&apos;re ready.
-            </span>
-          </button>
-
+          {/* Chat thread — fills remaining height, input stays at bottom of panel */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <FitzyChat
+              messages={messages}
+              onSend={handleSend}
+              loading={fitzyLoading}
+              mode="full"
+              placeholder="e.g. Something smart-casual for a dinner date…"
+            />
+          </div>
         </div>
-      </main>
+
+      </div>
     </div>
   );
 }

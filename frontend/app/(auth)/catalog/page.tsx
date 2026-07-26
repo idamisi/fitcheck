@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import catalog, { CatalogItem } from "../../data/catalog";
 import type { FitOutput } from "../../api/fit/route";
 import type { SearchOutput } from "../../api/search/route";
+import type { FitzyOutput } from "../../api/fitzy/route";
 import { createClient } from "../../lib/supabase";
 import AccountDropdown from "../../components/AccountDropdown";
 import { useOutfit } from "../../lib/outfit-context";
 import OutfitAvatarWidget from "../../components/OutfitAvatarWidget";
 import type { Measurements } from "../../components/MeasurementForm";
+import FitzyChat from "../../components/FitzyChat";
+import type { FitzyChatMessage } from "../../components/FitzyChat";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -80,9 +83,11 @@ function FilterPill({
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
+// "loading" = AI request in-flight, item info already shown
+// "done"    = AI response received
 type FitState =
   | { status: "idle" }
-  | { status: "loading" }
+  | { status: "loading"; item: CatalogItem }
   | { status: "done"; data: FitOutput; item: CatalogItem }
   | { status: "error"; message: string };
 
@@ -105,15 +110,28 @@ export default function CatalogPage() {
   const [fit, setFit] = useState<FitState>({ status: "idle" });
   const [measurements, setMeasurements] = useState<Measurements | null>(null);
 
-  // ── search state ───────────────────────────────────────────────────────────
-  const [searchState, setSearchState] = useState<SearchState>({ status: "idle" });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [budgetNoteDismissed, setBudgetNoteDismissed] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  // ── per-session AI response cache (item id → FitOutput) ─────────────────────
+  const fitCache = useRef<Map<string, FitOutput>>(new Map());
 
+  // ── Fitzy chat state (shared thread) ──────────────────────────────────────
+  const [fitzyMessages, setFitzyMessages] = useState<FitzyChatMessage[]>([]);
+  const [fitzyLoading, setFitzyLoading] = useState(false);
+  const [fitzyOpen, setFitzyOpen] = useState(false);
+  const [fitzyUnread, setFitzyUnread] = useState(false);
+
+  // ── Header text (Fitzy's reply for current results) ───────────────────────
+  const [fitzyHeaderText, setFitzyHeaderText] = useState<string | null>(null);
+
+  // ── Active Fitzy item IDs (drives grid ordering) ─────────────────────────
+  const [fitzyItemIds, setFitzyItemIds] = useState<string[] | null>(null);
+
+  // ── Filter panel open/closed ──────────────────────────────────────────────
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // ── Legacy search state (kept for backward compat with URL ?q= flow) ─────
+  const [searchState, setSearchState] = useState<SearchState>({ status: "idle" });
   // ── saved items ────────────────────────────────────────────────────────────
   const [savedMap, setSavedMap] = useState<Record<string, string>>({});
-
 
   useEffect(() => {
     async function init() {
@@ -142,6 +160,19 @@ export default function CatalogPage() {
 
       // Load measurements for the outfit widget
       setMeasurements(getStoredMeasurements());
+
+      // Restore Fitzy context passed from home page via sessionStorage
+      try {
+        const raw = sessionStorage.getItem("fitzy_context");
+        if (raw) {
+          const ctx = JSON.parse(raw);
+          if (ctx.reply)     setFitzyHeaderText(ctx.reply);
+          if (ctx.itemIds)   setFitzyItemIds(ctx.itemIds);
+          if (ctx.messages)  setFitzyMessages(ctx.messages);
+          // Clear so a refresh doesn't re-apply stale context
+          sessionStorage.removeItem("fitzy_context");
+        }
+      } catch { /* ignore */ }
     }
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -170,6 +201,54 @@ export default function CatalogPage() {
     }
   }
 
+  // ── Fitzy send handler (catalog-side — updates grid in place) ─────────────
+  async function handleFitzySend(text: string) {
+    const userMsg: FitzyChatMessage = { role: "user", content: text };
+    const next = [...fitzyMessages, userMsg];
+    setFitzyMessages(next);
+    setFitzyLoading(true);
+
+    try {
+      const res = await fetch("/api/fitzy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: next.map(({ role, content }) => ({ role, content })),
+          catalog,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        const errMsg = { role: "assistant" as const, content: err.error ?? "Fitzy's having trouble right now — try again." };
+        setFitzyMessages((prev) => [...prev, errMsg]);
+        if (!fitzyOpen) setFitzyUnread(true);
+        return;
+      }
+
+      const data: FitzyOutput = await res.json();
+
+      if (data.type === "search") {
+        // Update grid in-place — no navigation
+        setFitzyHeaderText(data.reply);
+        setFitzyItemIds(data.itemIds);
+        const assistantMsg = { role: "assistant" as const, content: data.reply, itemIds: data.itemIds };
+        setFitzyMessages((prev) => [...prev, assistantMsg]);
+        if (!fitzyOpen) setFitzyUnread(true);
+      } else {
+        const assistantMsg = { role: "assistant" as const, content: data.reply };
+        setFitzyMessages((prev) => [...prev, assistantMsg]);
+        if (!fitzyOpen) setFitzyUnread(true);
+      }
+    } catch {
+      const errMsg = { role: "assistant" as const, content: "Fitzy's having trouble right now — try again." };
+      setFitzyMessages((prev) => [...prev, errMsg]);
+      if (!fitzyOpen) setFitzyUnread(true);
+    } finally {
+      setFitzyLoading(false);
+    }
+  }
+
   // ── manual-filter pass ─────────────────────────────────────────────────────
   const manualFiltered = useMemo(() => {
     return catalog.filter((item) => {
@@ -180,35 +259,38 @@ export default function CatalogPage() {
     });
   }, [category, gender, style]);
 
-  // ── search result ordering ─────────────────────────────────────────────────
-  // Strategy: show matched items first (in ranked order), then the remaining
-  // manual-filtered items below a divider — dimmed but still browsable.
-  // This is less jarring than hiding non-matches entirely.
+  // ── grid ordering — Fitzy IDs take priority over legacy searchState ────────
   const { matchedItems, restItems, matchReasons } = useMemo(() => {
-    if (searchState.status !== "done") {
-      return { matchedItems: manualFiltered, restItems: [] as CatalogItem[], matchReasons: {} as Record<string, string> };
+    // Fitzy results (from /api/fitzy) — primary path
+    if (fitzyItemIds && fitzyItemIds.length > 0) {
+      const matchIds = new Set(fitzyItemIds);
+      const ranked = fitzyItemIds
+        .map((id) => catalog.find((item) => item.id === id))
+        .filter((item): item is CatalogItem => !!item && manualFiltered.includes(item));
+      const rest = manualFiltered.filter((item) => !matchIds.has(item.id));
+      return { matchedItems: ranked, restItems: rest, matchReasons: {} as Record<string, string> };
     }
 
-    const matchIds = new Set(searchState.data.matches.map((m) => m.id));
-    const reasons: Record<string, string> = {};
-    for (const m of searchState.data.matches) reasons[m.id] = m.reason;
+    // Legacy /api/search results (backward compat)
+    if (searchState.status === "done") {
+      const matchIds = new Set(searchState.data.matches.map((m) => m.id));
+      const reasons: Record<string, string> = {};
+      for (const m of searchState.data.matches) reasons[m.id] = m.reason;
+      const ranked = searchState.data.matches
+        .map((m) => manualFiltered.find((item) => item.id === m.id))
+        .filter((item): item is CatalogItem => item != null);
+      const rest = manualFiltered.filter((item) => !matchIds.has(item.id));
+      return { matchedItems: ranked, restItems: rest, matchReasons: reasons };
+    }
 
-    // Ranked order: preserve the order the model returned
-    const ranked = searchState.data.matches
-      .map((m) => manualFiltered.find((item) => item.id === m.id))
-      .filter((item): item is CatalogItem => item != null);
-
-    const rest = manualFiltered.filter((item) => !matchIds.has(item.id));
-
-    return { matchedItems: ranked, restItems: rest, matchReasons: reasons };
-  }, [searchState, manualFiltered]);
+    return { matchedItems: manualFiltered, restItems: [] as CatalogItem[], matchReasons: {} as Record<string, string> };
+  }, [fitzyItemIds, searchState, manualFiltered]);
 
   const totalVisible = matchedItems.length + restItems.length;
 
-  // ── search call ────────────────────────────────────────────────────────────
+  // ── legacy search call (kept for any direct ?q= fallback) ─────────────────
   async function runSearch(q: string) {
     if (!q.trim()) return;
-    setBudgetNoteDismissed(false);
     setSearchState({ status: "loading" });
 
     const activeFilters: Record<string, string> = {};
@@ -240,17 +322,10 @@ export default function CatalogPage() {
     }
   }
 
-  function clearSearch() {
-    setSearchQuery("");
-    setSearchState({ status: "idle" });
-    setBudgetNoteDismissed(false);
-    inputRef.current?.focus();
-  }
-
-  // ── fit-check call ─────────────────────────────────────────────────────────
+  // ── fit-check call — opens panel immediately, then fires AI (or uses cache) ─
   async function checkFit(item: CatalogItem) {
-    const measurements = getStoredMeasurements();
-    if (!measurements) {
+    const storedMeasurements = getStoredMeasurements();
+    if (!storedMeasurements) {
       setFit({
         status: "error",
         message: "No measurements found. Please go back and enter your measurements first.",
@@ -258,7 +333,15 @@ export default function CatalogPage() {
       return;
     }
 
-    setFit({ status: "loading" });
+    // Cache hit — show instantly
+    const cached = fitCache.current.get(item.id);
+    if (cached) {
+      setFit({ status: "done", data: cached, item });
+      return;
+    }
+
+    // Show item info immediately while AI loads
+    setFit({ status: "loading", item });
 
     const activeFilters: Record<string, string> = {};
     if (category !== "all") activeFilters.category = category;
@@ -269,7 +352,7 @@ export default function CatalogPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userMeasurements: measurements,
+          userMeasurements: storedMeasurements,
           selectedItemId: item.id,
           catalog,
           activeFilters: Object.keys(activeFilters).length ? activeFilters : undefined,
@@ -283,6 +366,7 @@ export default function CatalogPage() {
       }
 
       const data: FitOutput = await res.json();
+      fitCache.current.set(item.id, data);
       setFit({ status: "done", data, item });
     } catch {
       setFit({ status: "error", message: "Network error — please try again." });
@@ -296,12 +380,6 @@ export default function CatalogPage() {
           .map((r) => ({ ...r, catalogItem: catalog.find((c) => c.id === r.id) }))
           .filter((r) => r.catalogItem != null)
       : [];
-
-  // budget note to show (if search returned one and it hasn't been dismissed)
-  const budgetNote =
-    searchState.status === "done" && searchState.data.note && !budgetNoteDismissed
-      ? searchState.data.note
-      : null;
 
   // ────────────────────────────────────────────────────────────────────────────
   return (
@@ -327,135 +405,69 @@ export default function CatalogPage() {
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           Back
         </button>
-        <span className="text-sm font-semibold font-heading" style={{ color: "var(--text)" }}>
-          Catalog <span style={{ color: "var(--text-muted)" }}>({totalVisible})</span>
-        </span>
-        {/* AccountDropdown rendered by (auth)/layout.tsx */}
         <div style={{ width: 40 }} />
       </header>
 
-      {/* ── Search input ── */}
+      {/* ── Fitzy reply header — replaces static tagline ── */}
       <div
-        className="sticky top-[49px] z-10 px-6 pt-3 pb-2 border-b"
-        style={{ background: "var(--bg)", borderColor: "var(--border)" }}
+        className="px-5 pt-5 pb-3"
+        style={{ borderBottom: "1px solid var(--border)" }}
       >
-        <form
-          onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }}
-          className="flex items-center gap-2"
+        <p
+          className="text-xl font-bold tracking-tight font-heading leading-snug"
+          style={{ color: "var(--text)" }}
         >
-          <div className="relative flex-1">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-              width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              ref={inputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Piece it together…"
-              className="w-full pl-8 pr-8 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text)" }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={clearSearch}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2"
-                aria-label="Clear search"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            )}
-          </div>
-          <button
-            type="submit"
-            disabled={searchState.status === "loading" || !searchQuery.trim()}
-            className="flex-shrink-0 px-4 py-2 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2 disabled:opacity-40"
-            style={{ background: "var(--accent)", color: "var(--accent-text)", borderColor: "var(--accent)" }}
-          >
-            {searchState.status === "loading" ? (
-              <span className="flex items-center gap-1.5">
-                <Spinner size={12} color="var(--accent-text)" /> Searching…
-              </span>
-            ) : "Search"}
-          </button>
-        </form>
-
-        {searchState.status === "error" && (
-          <p className="mt-2 text-xs font-medium" style={{ color: "var(--danger)" }}>
-            {searchState.message}
+          {fitzyHeaderText ?? "Browse items."}
+        </p>
+        {fitzyItemIds && (
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            {matchedItems.length} match{matchedItems.length !== 1 ? "es" : ""}
           </p>
-        )}
-
-        {budgetNote && (
-          <div
-            className="mt-2 flex items-start justify-between gap-2 px-3 py-2 rounded-lg text-xs"
-            style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}
-          >
-            <span>{budgetNote}</span>
-            <button onClick={() => setBudgetNoteDismissed(true)} aria-label="Dismiss" className="flex-shrink-0 mt-0.5">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {searchState.status === "done" && (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs" style={{ color: "var(--text)" }}>
-              <span className="font-semibold">{matchedItems.length}</span> matches for &ldquo;{searchState.query}&rdquo;
-            </span>
-            <button onClick={clearSearch} className="text-xs underline" style={{ color: "var(--text-muted)" }}>
-              clear
-            </button>
-          </div>
         )}
       </div>
 
-      {/* ── Filters ── */}
+      {/* ── Filters — collapsed behind a toggle ── */}
       <div
-        className="px-6 py-3 border-b flex flex-col gap-2"
+        className="px-5 py-2 border-b"
         style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
-        <div className="flex flex-wrap gap-1.5">
-          {CATEGORIES.map((c) => (
-            <FilterPill key={c} label={LABEL[c]} active={category === c} onClick={() => setCategory(c)} />
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {GENDERS.map((g) => (
-            <FilterPill key={g} label={LABEL[g]} active={gender === g} onClick={() => setGender(g)} />
-          ))}
-          <span className="self-center text-xs" style={{ color: "var(--border)" }}>|</span>
-          {STYLES.map((s) => (
-            <FilterPill key={s} label={LABEL[s]} active={style === s} onClick={() => setStyle(s)} />
-          ))}
-        </div>
-      </div>
+        <button
+          onClick={() => setFiltersOpen((v) => !v)}
+          className="flex items-center gap-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 rounded"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+          </svg>
+          Refine results
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            style={{ transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
 
-      {/* ── Search-first tagline ── */}
-      {searchState.status === "idle" && !searchQuery && (
-        <div className="px-6 pt-6 pb-2">
-          <p className="text-2xl font-bold tracking-tight font-heading" style={{ color: "var(--text)" }}>
-            Piece it together.
-          </p>
-          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Describe what you&apos;re looking for, or browse below.
-          </p>
-        </div>
-      )}
+        {filtersOpen && (
+          <div className="flex flex-col gap-2 mt-2.5">
+            <div className="flex flex-wrap gap-1.5">
+              {CATEGORIES.map((c) => (
+                <FilterPill key={c} label={LABEL[c]} active={category === c} onClick={() => setCategory(c)} />
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {GENDERS.map((g) => (
+                <FilterPill key={g} label={LABEL[g]} active={gender === g} onClick={() => setGender(g)} />
+              ))}
+              <span className="self-center text-xs" style={{ color: "var(--border)" }}>|</span>
+              {STYLES.map((s) => (
+                <FilterPill key={s} label={LABEL[s]} active={style === s} onClick={() => setStyle(s)} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Grid ── */}
-      <div className="flex-1 px-4 py-6">
+      <div className="flex-1 px-4 py-6 pb-32">
         {totalVisible === 0 ? (
           <p className="text-sm text-center mt-12" style={{ color: "var(--text-muted)" }}>
             No items match the selected filters.
@@ -485,7 +497,7 @@ export default function CatalogPage() {
                   <div className="flex items-center gap-3 my-6">
                     <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
                     <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                      {searchState.status === "done" ? "More items" : "All items"}
+                      More items
                     </span>
                     <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
                   </div>
@@ -494,7 +506,7 @@ export default function CatalogPage() {
                   className="grid gap-4"
                   style={{
                     gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                    opacity: searchState.status === "done" ? 0.45 : 1,
+                    opacity: fitzyItemIds ? 0.45 : 1,
                   }}
                 >
                   {restItems.map((item) => (
@@ -515,16 +527,104 @@ export default function CatalogPage() {
         )}
       </div>
 
-      {/* ── Fit-check overlay ── */}
+      {/* ── Fit-check panel ── */}
       {fit.status !== "idle" && (
         <FitPanel
           fit={fit}
           recoItems={recoItems}
           onClose={() => setFit({ status: "idle" })}
+          onCheckFit={checkFit}
         />
       )}
 
-      {/* ── Outfit avatar widget — fixed bottom-right corner ── */}
+      {/* ── Fitzy floating panel ── */}
+      {fitzyOpen && (
+        <>
+          {/* Backdrop — tap outside to dismiss */}
+          <div
+            className="fixed inset-0 z-40"
+            style={{ background: "rgba(11,26,51,0.25)" }}
+            onClick={() => setFitzyOpen(false)}
+          />
+          <div
+            className="fixed bottom-20 right-4 z-50 w-80 rounded-2xl flex flex-col overflow-hidden shadow-lg"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              height: 420,
+            }}
+          >
+            {/* Panel header */}
+            <div
+              className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <span className="text-sm font-semibold" style={{ color: "var(--text)", fontFamily: "var(--font-heading)" }}>
+                Fitzy
+              </span>
+              <button
+                onClick={() => setFitzyOpen(false)}
+                className="focus:outline-none"
+                style={{ color: "var(--text-muted)" }}
+                aria-label="Close Fitzy"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Chat thread */}
+            <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
+              <FitzyChat
+                messages={fitzyMessages}
+                onSend={handleFitzySend}
+                loading={fitzyLoading}
+                mode="panel"
+                onFitCheck={checkFit}
+                placeholder="Refine or ask something…"
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Fitzy FAB — stacked above My Look widget ── */}
+      <button
+        onClick={() => {
+          setFitzyOpen((v) => !v);
+          setFitzyUnread(false);
+        }}
+        className="fixed right-4 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-xl focus:outline-none focus-visible:ring-2 transition-colors"
+        style={{
+          bottom: 116,
+          background: fitzyOpen ? "#0B1A33" : "#8FB7FF",
+          color: fitzyOpen ? "#F7F5F1" : "#0B1A33",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        }}
+        aria-label={fitzyOpen ? "Close Fitzy" : "Open Fitzy"}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span className="text-[11px] font-bold" style={{ fontFamily: "var(--font-heading)", letterSpacing: "0.01em" }}>
+          Fitzy
+        </span>
+        {/* Unread dot */}
+        {fitzyUnread && !fitzyOpen && (
+          <span
+            className="absolute top-0 right-0 w-2 h-2 rounded-full border-2"
+            style={{
+              background: "#B91C1C",
+              borderColor: "#F7F5F1",
+              transform: "translate(35%, -35%)",
+            }}
+            aria-label="Unread message"
+          />
+        )}
+      </button>
+
+      {/* ── Outfit avatar widget (My Look) ── */}
       {measurements && <OutfitAvatarWidget measurements={measurements} />}
     </main>
   );
@@ -551,8 +651,13 @@ function ItemCard({
 }) {
   return (
     <div
-      className="flex flex-col rounded-2xl overflow-hidden border"
+      className="flex flex-col rounded-2xl overflow-hidden border cursor-pointer"
       style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+      onClick={() => onFitCheck(item)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onFitCheck(item)}
+      aria-label={`View fit details for ${item.name}`}
     >
       <div className="relative w-full" style={{ paddingBottom: "120%", background: "var(--bg)" }}>
         <Image
@@ -563,8 +668,9 @@ function ItemCard({
           className="object-cover"
           unoptimized
         />
+        {/* Save button — stopPropagation so it doesn't also trigger card click */}
         <button
-          onClick={onToggleSave}
+          onClick={(e) => { e.stopPropagation(); onToggleSave(); }}
           aria-label={saved ? `Unsave ${item.name}` : `Save ${item.name}`}
           className="absolute top-2 right-2 rounded-full p-1 focus:outline-none focus-visible:ring-2 transition-colors"
           style={{ background: "rgba(255,255,255,0.85)" }}
@@ -584,9 +690,16 @@ function ItemCard({
         <p className="text-xs font-medium leading-snug" style={{ color: "var(--text)" }}>
           {item.name}
         </p>
-        <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
-          {item.color}
-        </p>
+        <div className="flex items-baseline gap-1.5 flex-wrap">
+          <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
+            {item.color}
+          </p>
+          {item.price != null && item.currency && (
+            <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>
+              {item.currency === "USD" ? "$" : item.currency}{item.price.toFixed(2)}
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1 mt-auto pt-1">
           {item.styleTags.map((t) => (
             <span
@@ -606,7 +719,8 @@ function ItemCard({
             {searchReason}
           </p>
         )}
-        <div className="flex gap-1.5 mt-2">
+        {/* Bottom action row — stopPropagation on inner buttons */}
+        <div className="flex gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onFitCheck(item)}
             className="flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2"
@@ -617,20 +731,18 @@ function ItemCard({
           <button
             onClick={onToggleOutfit}
             aria-label={inOutfit ? `Remove ${item.name} from look` : `Add ${item.name} to look`}
-            title={inOutfit ? "Remove from look" : "Add to look"}
+            title={inOutfit ? "Remove from My Look" : "Add to My Look"}
             className="flex-shrink-0 px-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2"
             style={inOutfit
               ? { background: "var(--text)", color: "var(--surface)", borderColor: "var(--text)" }
               : { background: "var(--surface)", color: "var(--text)", borderColor: "var(--border)" }}
           >
             {inOutfit ? (
-              /* filled person icon */
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <circle cx="12" cy="7" r="4" />
                 <path d="M12 14c-5 0-8 2.24-8 5v1h16v-1c0-2.76-3-5-8-5z" />
               </svg>
             ) : (
-              /* outlined person icon */
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="7" r="4" />
                 <path d="M12 14c-5 0-8 2.24-8 5v1h16v-1c0-2.76-3-5-8-5z" />
@@ -652,15 +764,260 @@ type RecoItemWithCatalog = {
   catalogItem: CatalogItem | undefined;
 };
 
+// The panel manages its own navigation stack for drilling into pairing cards.
+
 function FitPanel({
   fit,
   recoItems,
   onClose,
+  onCheckFit,
 }: {
   fit: FitState;
   recoItems: RecoItemWithCatalog[];
   onClose: () => void;
+  onCheckFit: (item: CatalogItem) => void;
 }) {
+  const rootItem = fit.status !== "idle" && fit.status !== "error" ? fit.item : null;
+  const rootItemId = rootItem?.id ?? null;
+
+  type DrillEntry = {
+    item: CatalogItem;
+    fitStatus: "loading" | "done" | "error";
+    data?: FitOutput;
+    error?: string;
+    recos: RecoItemWithCatalog[];
+  };
+
+  const [stack, setStack] = useState<DrillEntry[]>([]);
+
+  useEffect(() => {
+    setStack([]);
+  }, [rootItemId]);
+
+  const drillCache = useRef<Map<string, FitOutput>>(new Map());
+
+  function getStackIds(): string[] {
+    const ids: string[] = [];
+    if (rootItem) ids.push(rootItem.id);
+    for (const entry of stack) ids.push(entry.item.id);
+    return ids;
+  }
+
+  async function drillInto(item: CatalogItem) {
+    const excludeIds = getStackIds();
+    setStack((prev) => [...prev, { item, fitStatus: "loading", recos: [] }]);
+
+    const cached = drillCache.current.get(item.id);
+    if (cached) {
+      const recos = cached.recommendations
+        .map((r) => ({ ...r, catalogItem: catalog.find((c) => c.id === r.id) }))
+        .filter((r) => r.catalogItem != null && !excludeIds.includes(r.id));
+      setStack((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = { item, fitStatus: "done", data: cached, recos };
+        return next;
+      });
+      return;
+    }
+
+    const storedM = getStoredMeasurements();
+
+    try {
+      const res = await fetch("/api/fit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userMeasurements: storedM ?? { height: 0, shoulderWidth: 0, chest: 0, waist: 0, hip: 0, inseam: 0 },
+          selectedItemId: item.id,
+          catalog,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        setStack((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = { item, fitStatus: "error", error: err.error ?? "Request failed.", recos: [] };
+          return next;
+        });
+        return;
+      }
+
+      const data: FitOutput = await res.json();
+      drillCache.current.set(item.id, data);
+      const recos = data.recommendations
+        .map((r) => ({ ...r, catalogItem: catalog.find((c) => c.id === r.id) }))
+        .filter((r) => r.catalogItem != null && !excludeIds.includes(r.id));
+      setStack((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = { item, fitStatus: "done", data, recos };
+        return next;
+      });
+    } catch {
+      setStack((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = { item, fitStatus: "error", error: "Network error — try again.", recos: [] };
+        return next;
+      });
+    }
+  }
+
+  const currentDrill = stack.length > 0 ? stack[stack.length - 1] : null;
+
+  // Carousel drag-scroll
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef({ dragging: false, startX: 0, scrollLeft: 0 });
+
+  function carouselMouseDown(e: React.MouseEvent) {
+    const el = carouselRef.current; if (!el) return;
+    dragState.current = { dragging: true, startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft };
+    el.style.cursor = "grabbing";
+  }
+  function carouselMouseMove(e: React.MouseEvent) {
+    if (!dragState.current.dragging) return;
+    const el = carouselRef.current; if (!el) return;
+    e.preventDefault();
+    el.scrollLeft = dragState.current.scrollLeft - (e.pageX - el.offsetLeft - dragState.current.startX);
+  }
+  function carouselMouseUp() {
+    dragState.current.dragging = false;
+    if (carouselRef.current) carouselRef.current.style.cursor = "grab";
+  }
+
+  // ── render helpers ────────────────────────────────────────────────────────
+
+  function renderItemHeader(item: CatalogItem) {
+    return (
+      <div className="flex items-start gap-3 pt-1">
+        <div
+          className="relative flex-shrink-0 rounded-xl overflow-hidden border"
+          style={{ width: 56, height: 68, borderColor: "var(--border)" }}
+        >
+          {item.imageUrl && (
+            <Image src={item.imageUrl} alt={item.name} fill sizes="56px" className="object-cover" unoptimized />
+          )}
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{item.name}</p>
+          <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>{item.color}</p>
+          {item.price != null && item.currency && (
+            <p className="text-xs font-semibold mt-0.5" style={{ color: "var(--text)" }}>
+              {item.currency === "USD" ? "$" : item.currency}{item.price.toFixed(2)}
+              {item.originalPrice != null && item.originalPrice > item.price && (
+                <span className="ml-1.5 line-through font-normal" style={{ color: "var(--text-muted)" }}>
+                  ${item.originalPrice.toFixed(2)}
+                </span>
+              )}
+            </p>
+          )}
+          {item.sizes && (
+            <p className="text-[10px] leading-snug mt-0.5" style={{ color: "var(--text-muted)" }}>
+              Sizes: {item.sizes}
+            </p>
+          )}
+          {item.productUrl && (
+            <a
+              href={item.productUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md w-fit"
+              style={{ background: "var(--accent)", color: "var(--accent-text)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              Shop {item.brand ? `at ${item.brand}` : "now"}
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderAiSkeleton() {
+    return (
+      <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading fit details">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>
+            Fit Details
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {[80, 95, 70].map((w, i) => (
+              <div key={i} className="h-3 rounded" style={{ width: `${w}%`, background: "var(--border)" }} />
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "var(--accent)" }}>
+            Pairs Well With
+          </p>
+          <div className="flex gap-3 overflow-hidden">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex-shrink-0 rounded-xl" style={{ width: 120, height: 160, background: "var(--border)" }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderRecoCarousel(recos: RecoItemWithCatalog[], onDrill: (item: CatalogItem) => void) {
+    if (recos.length === 0) return null;
+    return (
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "var(--accent)" }}>
+          Pairs Well With
+        </p>
+        <div
+          ref={carouselRef}
+          className="flex gap-3 overflow-x-auto pb-2"
+          style={{ scrollbarWidth: "none", cursor: "grab", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+          onMouseDown={carouselMouseDown}
+          onMouseMove={carouselMouseMove}
+          onMouseUp={carouselMouseUp}
+          onMouseLeave={carouselMouseUp}
+        >
+          {recos.map((r) => {
+            if (!r.catalogItem) return null;
+            const ci = r.catalogItem;
+            return (
+              <button
+                key={r.id}
+                onClick={() => onDrill(ci)}
+                className="flex-shrink-0 flex flex-col rounded-xl overflow-hidden border focus:outline-none focus-visible:ring-2"
+                style={{ width: 120, background: "var(--bg)", borderColor: "var(--border)", textAlign: "left" }}
+                aria-label={`View fit details for ${ci.name}`}
+              >
+                <div className="relative w-full flex-shrink-0" style={{ height: 140 }}>
+                  <Image src={ci.imageUrl} alt={ci.name} fill sizes="120px" className="object-cover" unoptimized />
+                </div>
+                <div className="p-2 flex flex-col gap-0.5">
+                  <p className="text-[10px] font-semibold leading-snug" style={{ color: "var(--text)" }}>{ci.name}</p>
+                  <p className="text-[10px] capitalize" style={{ color: "var(--text-muted)" }}>{ci.color}</p>
+                  <p
+                    className="text-[10px] leading-snug mt-0.5"
+                    style={{
+                      color: "var(--text-muted)",
+                      display: "-webkit-box",
+                      WebkitBoxOrient: "vertical",
+                      WebkitLineClamp: 2,
+                      overflow: "hidden",
+                    } as React.CSSProperties}
+                  >
+                    {r.reason}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── main render ───────────────────────────────────────────────────────────
+
   return (
     <>
       <div
@@ -672,122 +1029,93 @@ function FitPanel({
         className="fixed bottom-0 left-0 right-0 z-40 rounded-t-2xl flex flex-col max-h-[85vh] overflow-y-auto"
         style={{ background: "var(--surface)", borderTop: "1px solid var(--border)" }}
       >
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
           <div className="w-10 h-1 rounded-full" style={{ background: "var(--border)" }} />
         </div>
 
-        <div className="px-5 pb-8 flex flex-col gap-5">
-          {fit.status === "loading" && (
-            <div className="flex flex-col items-center py-10 gap-3">
-              <Spinner />
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Analysing fit…</p>
-            </div>
-          )}
+        {stack.length > 0 && (
+          <div className="px-5 pt-1 flex-shrink-0">
+            <button
+              onClick={() => setStack((prev) => prev.slice(0, -1))}
+              className="flex items-center gap-1 text-xs focus:outline-none focus-visible:ring-2 rounded"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              Back
+            </button>
+          </div>
+        )}
 
-          {fit.status === "error" && (
+        <div className="px-5 pb-8 flex flex-col gap-5">
+
+          {/* Error (no item) */}
+          {fit.status === "error" && stack.length === 0 && (
             <div className="py-8 text-center">
               <p className="text-sm font-medium" style={{ color: "var(--danger)" }}>{fit.message}</p>
-              <button
-                onClick={onClose}
-                className="mt-4 px-6 py-2 text-sm rounded-lg border"
-                style={{ borderColor: "var(--border)", color: "var(--text)" }}
-              >
-                Close
-              </button>
+              <button onClick={onClose} className="mt-4 px-6 py-2 text-sm rounded-lg border" style={{ borderColor: "var(--border)", color: "var(--text)" }}>Close</button>
             </div>
           )}
 
-          {fit.status === "done" && (
+          {/* Root item — loading or done */}
+          {(fit.status === "loading" || fit.status === "done") && stack.length === 0 && (
             <>
-              <div className="flex items-center gap-3 pt-1">
-                <div
-                  className="relative flex-shrink-0 rounded-xl overflow-hidden border"
-                  style={{ width: 56, height: 68, borderColor: "var(--border)" }}
-                >
-                  {fit.item.imageUrl && (
-                    <Image src={fit.item.imageUrl} alt={fit.item.name} fill sizes="56px" className="object-cover" unoptimized />
+              {renderItemHeader(fit.item)}
+              {fit.status === "loading" && renderAiSkeleton()}
+              {fit.status === "done" && (
+                <>
+                  {fit.data.fitDescription && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>Fit Details</p>
+                      <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>{fit.data.fitDescription}</p>
+                    </div>
                   )}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{fit.item.name}</p>
-                  <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>{fit.item.color}</p>
-                </div>
-              </div>
-
-              {fit.data.fitDescription && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>
-                    Fit Details
-                  </p>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
-                    {fit.data.fitDescription}
-                  </p>
-                </div>
+                  {renderRecoCarousel(recoItems, drillInto)}
+                </>
               )}
-
-              {recoItems.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "var(--accent)" }}>
-                    Pairs Well With
-                  </p>
-                  <div className="flex flex-col gap-3">
-                    {recoItems.map((r) => (
-                      <div
-                        key={r.id}
-                        className="flex gap-3 p-3 rounded-xl border"
-                        style={{ borderColor: "var(--border)", background: "var(--bg)" }}
-                      >
-                        {r.catalogItem?.imageUrl && (
-                          <div
-                            className="relative flex-shrink-0 rounded-lg overflow-hidden border"
-                            style={{ width: 52, height: 64, borderColor: "var(--border)" }}
-                          >
-                            <Image src={r.catalogItem.imageUrl} alt={r.name} fill sizes="52px" className="object-cover" unoptimized />
-                          </div>
-                        )}
-                        <div className="flex flex-col gap-0.5">
-                          <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{r.name}</p>
-                          {r.catalogItem && (
-                            <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>{r.catalogItem.color}</p>
-                          )}
-                          <p className="text-xs leading-snug mt-0.5" style={{ color: "var(--text-muted)" }}>{r.reason}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <button
-                onClick={onClose}
-                className="mt-1 w-full py-2.5 text-sm font-semibold rounded-lg border transition-colors"
-                style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--bg)" }}
-              >
-                Close
-              </button>
+              <button onClick={onClose} className="mt-1 w-full py-2.5 text-sm font-semibold rounded-lg border transition-colors" style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--bg)" }}>Close</button>
             </>
           )}
+
+          {/* Drilled item */}
+          {currentDrill && (
+            <>
+              {renderItemHeader(currentDrill.item)}
+              {currentDrill.fitStatus === "loading" && renderAiSkeleton()}
+              {currentDrill.fitStatus === "error" && (
+                <p className="text-sm" style={{ color: "var(--danger)" }}>{currentDrill.error}</p>
+              )}
+              {currentDrill.fitStatus === "done" && currentDrill.data && (
+                <>
+                  {currentDrill.data.fitDescription && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>Fit Details</p>
+                      <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>{currentDrill.data.fitDescription}</p>
+                    </div>
+                  )}
+                  {renderRecoCarousel(currentDrill.recos, drillInto)}
+                </>
+              )}
+              <button onClick={onClose} className="mt-1 w-full py-2.5 text-sm font-semibold rounded-lg border transition-colors" style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--bg)" }}>Close</button>
+            </>
+          )}
+
         </div>
       </div>
     </>
   );
 }
 
-// ─── Spinner ─────────────────────────────────────────────────────────────────
+// ─── Spinner (kept for potential future use) ──────────────────────────────────
 
 function Spinner({ size = 24, color = "var(--accent)" }: { size?: number; color?: string }) {
   return (
-    <svg
-      className="animate-spin"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-    >
+    <svg className="animate-spin" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
       <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
       <path d="M12 2a10 10 0 0 1 10 10" />
     </svg>
   );
 }
+
+void Spinner;

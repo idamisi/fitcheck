@@ -13,6 +13,11 @@ export type CatalogItem = {
   imageUrl?: string;
   sizeChartRef?: string;
   measurements?: GarmentMeasurements;
+  sizes?: string;
+  price?: number;
+  currency?: string;
+  brand?: string;
+  productUrl?: string;
 };
 
 type GarmentMeasurements = {
@@ -89,11 +94,17 @@ function buildPrompt(
 ): string {
   const isShoe = item.category.toLowerCase() === "shoe";
 
-  const garmentLines =
-    Object.entries(garmentM)
-      .filter(([, v]) => v !== undefined)
-      .map(([k, v]) => `  ${k}: ${v} cm`)
-      .join("\n") || "  (no garment measurements available)";
+  // Build garment measurement block — prefer resolved chart data, fall back to sizes string
+  const chartLines = Object.entries(garmentM)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => `  ${k}: ${v} cm`)
+    .join("\n");
+
+  const garmentLines = chartLines
+    ? chartLines
+    : item.sizes
+      ? `  Available sizes/dimensions: ${item.sizes}`
+      : "  (no garment measurements available — skip numeric comparisons)";
 
   const filterNote =
     activeFilters && Object.values(activeFilters).some(Boolean)
@@ -112,10 +123,12 @@ function buildPrompt(
   const fitBlock = isShoe
     ? `The selected item is a shoe. Do NOT write fit comparison language — shoes have no comparable body measurement.
 Set "fitDescription" to null in your JSON response.`
-    : `Compare the garment measurements to the user's body measurements.
-Write purely factual, descriptive sentences. State exact differences in centimetres.
-Do NOT use words like "good", "bad", "too small", "too big", "fits well", or any evaluative judgment.
-Example of correct style: "This item's chest measurement is 4 cm larger than yours. The shoulder width matches your measurement closely."
+    : `Compare the garment data to the user's body measurements.
+If exact cm measurements are available, state exact differences in centimetres.
+If only size/dimension text is available, use it to give a practical sizing observation.
+Write purely factual, descriptive sentences. Do NOT use evaluative words like "good", "bad", "too small", "too big", or "fits well".
+Example (with measurements): "The chest measurement is 4 cm larger than yours. Shoulder width is within 1 cm."
+Example (with size text): "This item is available in waist sizes 26W–54W. Based on your waist of ${userM.waist} cm, the closest size is approximately [relevant size]."
 
 User body measurements:
   height: ${userM.height} cm
@@ -125,19 +138,21 @@ User body measurements:
   hip: ${userM.hip} cm
   inseam: ${userM.inseam} cm
 
-Selected garment measurements:
+Selected garment measurements/sizes:
 ${garmentLines}
 
 Put your factual comparison in the "fitDescription" field.`;
 
-  return `You are a factual clothing fit assistant. You must respond with ONLY a JSON object — no prose, no markdown fences, no text before or after the JSON.
+  return `You are a factual clothing fit and styling assistant. You must respond with ONLY a JSON object — no prose, no markdown fences, no text before or after the JSON.
 
 TASK:
 ${fitBlock}
 
 Recommend exactly 2 or 3 complementary catalog items that pair well with the selected item.
-Base recommendations on COLOR and STYLE compatibility with the selected item.
-Explain concretely why each pairing works (colour contrast, style match, etc.).
+For each recommendation, write a pairing reason that covers ALL THREE of the following angles — do not echo the style tags back as a sentence:
+  1. COLOUR: Describe the actual colour relationship (e.g. "the navy creates a clean contrast against the beige", "both are earth tones that sit in the same tonal range", "the white provides a light top to balance the heavy dark bottom").
+  2. SILHOUETTE: Comment on how the two cuts interact (e.g. "the slim-cut chino balances the relaxed fit of the hoodie", "wide-leg trousers work with the cropped length of this top").
+  3. FORMALITY: Confirm the formality levels align or explain how to bridge them (e.g. "both sit in the smart-casual register", "the blazer slightly dresses up what is otherwise a casual pairing").
 ${filterNote}
 
 Selected item:
@@ -153,8 +168,8 @@ Respond with ONLY this exact JSON shape:
 {
   "fitDescription": "<factual comparison text, or null for shoes>",
   "recommendations": [
-    { "id": "<id>", "name": "<name>", "reason": "<why it pairs well>" },
-    { "id": "<id>", "name": "<name>", "reason": "<why it pairs well>" }
+    { "id": "<id>", "name": "<name>", "reason": "<colour relationship + silhouette interaction + formality match>" },
+    { "id": "<id>", "name": "<name>", "reason": "<colour relationship + silhouette interaction + formality match>" }
   ]
 }`;
 }
