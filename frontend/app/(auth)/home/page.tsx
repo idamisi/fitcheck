@@ -344,6 +344,14 @@ export default function HomePage() {
             {/* Quick-link buttons */}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%" }}>
               <button
+                onClick={() => router.push("/pick-match")}
+                style={{ ...quickBtnStyle, background: "#8FB7FF", borderColor: "#8FB7FF" }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                Pick &amp; Match
+              </button>
+              <button
                 onClick={() => router.push("/saved")}
                 style={quickBtnStyle}
                 onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}

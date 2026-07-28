@@ -475,18 +475,32 @@ export default function CatalogPage() {
         ) : (
           <>
             {matchedItems.length > 0 && (
-              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
+              <div
+                className="ai-picks-carousel flex gap-3 overflow-x-auto -mx-4 px-4"
+                style={{
+                  scrollSnapType: "x mandatory",
+                  WebkitOverflowScrolling: "touch",
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none",
+                  paddingRight: "2rem",
+                }}
+              >
                 {matchedItems.map((item) => (
-                  <ItemCard
+                  <div
                     key={item.id}
-                    item={item}
-                    onFitCheck={checkFit}
-                    searchReason={matchReasons[item.id]}
-                    saved={item.id in savedMap}
-                    onToggleSave={() => toggleSave(item.id)}
-                    inOutfit={itemInOutfit(item.id)}
-                    onToggleOutfit={() => toggleItem(item)}
-                  />
+                    className="flex-shrink-0"
+                    style={{ width: 156, scrollSnapAlign: "start" }}
+                  >
+                    <ItemCard
+                      item={item}
+                      onFitCheck={checkFit}
+                      searchReason={matchReasons[item.id]}
+                      saved={item.id in savedMap}
+                      onToggleSave={() => toggleSave(item.id)}
+                      inOutfit={itemInOutfit(item.id)}
+                      onToggleOutfit={() => toggleItem(item)}
+                    />
+                  </div>
                 ))}
               </div>
             )}
