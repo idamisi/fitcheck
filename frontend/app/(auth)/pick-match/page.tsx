@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import catalog, { CatalogItem } from "../../data/catalog";
 import AccountDropdown from "../../components/AccountDropdown";
@@ -10,12 +10,7 @@ import { getStoredMeasurements } from "../../components/FitPanel";
 import { createClient } from "../../lib/supabase";
 import { CategoryRow } from "../../components/CategoryRows";
 
-// ─── data slices ──────────────────────────────────────────────────────────────
-
-const outerwearItems = catalog.filter((i) => i.category === "outerwear");
-const topItems       = catalog.filter((i) => i.category === "top");
-const bottomItems    = catalog.filter((i) => i.category === "bottom");
-const shoeItems      = catalog.filter((i) => i.category === "shoe");
+type GenderFilter = "all" | "men" | "women";
 
 // ─── page ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +18,15 @@ export default function PickMatchPage() {
   const router = useRouter();
   const { outfit, toggleItem } = useOutfit();
   const supabase = createClient();
+
+  const [gender, setGender] = useState<GenderFilter>("all");
+
+  // ── true once the profile fetch has resolved and gender is correctly seeded ──
+  const [profileReady, setProfileReady] = useState(false);
+
+  // ── true if this page was reached via "Load outfit" on the Saved page —
+  // changes where the Back button points (→ /saved instead of → /home). ──
+  const [cameFromSaved, setCameFromSaved] = useState(false);
 
   const [outfitFit, setOutfitFit] = useState<OutfitFitState>({ status: "idle" });
 
@@ -40,6 +44,53 @@ export default function PickMatchPage() {
   ].filter((i): i is CatalogItem => i !== null);
 
   const hasSelection = selectedItems.length > 0;
+
+  // Seed the gender filter from the user's profile before anything renders,
+  // so rows never show an unfiltered flash on load (same fix as /catalog).
+  useEffect(() => {
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace("/"); return; }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("gender")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile?.gender === "men" || profile?.gender === "women") {
+        setGender(profile.gender);
+      }
+
+      setProfileReady(true);
+    }
+    init();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Load outfit" (from Saved) sets a one-shot flag before navigating here so
+  // the Back button can return to /saved instead of the default /home.
+  useEffect(() => {
+    function restoreFromSaved() {
+      try {
+        if (sessionStorage.getItem("fitcheck_from_saved") === "1") {
+          setCameFromSaved(true);
+          sessionStorage.removeItem("fitcheck_from_saved");
+        }
+      } catch {}
+    }
+    restoreFromSaved();
+  }, []);
+
+  // ── Gender-filtered catalog per-category ─────────────────────────────────
+  const filteredByGender = useMemo(
+    () => (gender === "all" ? catalog : catalog.filter((i) => i.gender === gender)),
+    [gender],
+  );
+
+  const outerwearItems = useMemo(() => filteredByGender.filter((i) => i.category === "outerwear"), [filteredByGender]);
+  const topItems       = useMemo(() => filteredByGender.filter((i) => i.category === "top"),       [filteredByGender]);
+  const bottomItems    = useMemo(() => filteredByGender.filter((i) => i.category === "bottom"),    [filteredByGender]);
+  const shoeItems      = useMemo(() => filteredByGender.filter((i) => i.category === "shoe"),      [filteredByGender]);
 
   // Auto-clear the save toast after 3 s.
   useEffect(() => {
@@ -126,6 +177,23 @@ export default function PickMatchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outfit.outerwear?.id, outfit.top?.id, outfit.bottom?.id, outfit.shoe?.id]);
 
+  // "Load outfit" (from Saved) sets a one-shot flag before navigating here so
+  // the review panel opens immediately instead of requiring a manual click.
+  const autoReviewRan = useRef(false);
+  useEffect(() => {
+    if (autoReviewRan.current || !hasSelection) return;
+    let shouldAutoReview = false;
+    try {
+      shouldAutoReview = sessionStorage.getItem("fitcheck_auto_review") === "1";
+    } catch {}
+    if (!shouldAutoReview) return;
+    autoReviewRan.current = true;
+    try {
+      sessionStorage.removeItem("fitcheck_auto_review");
+    } catch {}
+    reviewOutfit();
+  }, [hasSelection, reviewOutfit]);
+
   return (
     <main className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
 
@@ -140,7 +208,7 @@ export default function PickMatchPage() {
         style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
         <button
-          onClick={() => router.push("/home")}
+          onClick={() => router.push(cameFromSaved ? "/saved" : "/home")}
           className="flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded-lg"
           style={{ color: "var(--text-muted)" }}
           onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
@@ -170,13 +238,34 @@ export default function PickMatchPage() {
           gap: 0,
         }}
       >
-        {/* ── Left: category rows ── */}
+        {/* ── Left: category rows — only rendered after the profile fetch
+              resolves so the gender filter is already correct on first paint
+              (no unfiltered flash). ── */}
         <div className="flex flex-col gap-8 px-4 py-6 overflow-hidden">
-          <CategoryRow label="Outerwear" items={outerwearItems} />
-          <CategoryRow label="Tops"      items={topItems} />
-          <CategoryRow label="Bottoms"   items={bottomItems} />
-          {shoeItems.length > 0 && (
-            <CategoryRow label="Shoes" items={shoeItems} />
+          {!profileReady ? (
+            <div className="flex flex-col gap-8" aria-busy="true" aria-label="Loading catalog">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex flex-col gap-2">
+                  <div className="h-3 w-20 rounded" style={{ background: "var(--border)" }} />
+                  <div className="flex gap-3">
+                    {[1, 2, 3].map((j) => (
+                      <div
+                        key={j}
+                        className="flex-shrink-0 rounded-2xl"
+                        style={{ width: 156, height: 220, background: "var(--border)" }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {outerwearItems.length > 0 && <CategoryRow label="Outerwear" items={outerwearItems} />}
+              {topItems.length > 0 && <CategoryRow label="Tops" items={topItems} />}
+              {bottomItems.length > 0 && <CategoryRow label="Bottoms" items={bottomItems} />}
+              {shoeItems.length > 0 && <CategoryRow label="Shoes" items={shoeItems} />}
+            </>
           )}
         </div>
 

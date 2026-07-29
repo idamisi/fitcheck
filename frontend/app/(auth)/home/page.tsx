@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase";
 import Avatar from "../../components/Avatar";
@@ -28,6 +28,10 @@ export default function HomePage() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Measurements>(EMPTY_M);
 
+  // ── gender filter (seeded from profile) — same pattern as /catalog and
+  // /pick-match, used to keep Fitzy's candidates scoped to the user's gender
+  const [gender, setGender] = useState<"all" | "men" | "women">("all");
+
   // ── Fitzy state ────────────────────────────────────────────────────────────
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<FitzyChatMessage[]>([]);
@@ -41,11 +45,14 @@ export default function HomePage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name")
+        .select("display_name, gender")
         .eq("id", user.id)
         .maybeSingle();
 
       if (profile?.display_name) setDisplayName(profile.display_name);
+      if (profile?.gender === "men" || profile?.gender === "women") {
+        setGender(profile.gender);
+      }
 
       try {
         const raw = sessionStorage.getItem("fitcheck_measurements");
@@ -76,6 +83,12 @@ export default function HomePage() {
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Gender-filtered catalog — used only for Fitzy's candidates ────────────
+  const filteredByGender = useMemo(
+    () => (gender === "all" ? catalog : catalog.filter((i) => i.gender === gender)),
+    [gender],
+  );
+
   // ── Fitzy send handler ─────────────────────────────────────────────────────
   async function handleSend(text: string) {
     const userMsg: FitzyChatMessage = { role: "user", content: text };
@@ -89,7 +102,7 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: next.map(({ role, content }) => ({ role, content })),
-          catalog,
+          catalog: filteredByGender,
         }),
       });
 

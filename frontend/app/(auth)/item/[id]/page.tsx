@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "../../../lib/supabase";
@@ -56,6 +56,11 @@ export default function ItemDetailPage() {
   const [measurements, setMeasurements] = useState<Measurements | null>(null);
   const [savedRowId, setSavedRowId] = useState<string | null>(null);
 
+  // ── gender filter (seeded from profile) — same pattern as /catalog and
+  // /pick-match, used to keep the floating Fitzy widget's candidates scoped
+  // to the user's gender ──────────────────────────────────────────────────
+  const [gender, setGender] = useState<"all" | "men" | "women">("all");
+
   // ── fit state ─────────────────────────────────────────────────────────────
   const [fit, setFit] = useState<FitState>({ status: "idle" });
   const fitCache = useRef<Map<string, FitOutput>>(new Map());
@@ -73,6 +78,19 @@ export default function ItemDetailPage() {
 
       setMeasurements(getStoredMeasurements());
 
+      // Seed gender filter from the user's profile preference (same query
+      // used on /catalog and /pick-match) so the Fitzy widget only ever
+      // offers items matching their gender.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("gender")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile?.gender === "men" || profile?.gender === "women") {
+        setGender(profile.gender);
+      }
+
       // Check if this item is already saved
       const { data } = await supabase
         .from("saved_items")
@@ -87,6 +105,12 @@ export default function ItemDetailPage() {
     }
     init();
   }, [itemId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Gender-filtered catalog — used only for the Fitzy widget's candidates ──
+  const filteredByGender = useMemo(
+    () => (gender === "all" ? catalog : catalog.filter((i) => i.gender === gender)),
+    [gender],
+  );
 
   // ── save / unsave ─────────────────────────────────────────────────────────
   async function handleToggleSave() {
@@ -158,7 +182,7 @@ export default function ItemDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: next.map(({ role, content }) => ({ role, content })),
-          catalog,
+          catalog: filteredByGender,
         }),
       });
 

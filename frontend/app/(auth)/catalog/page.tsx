@@ -68,7 +68,7 @@ function FilterPill({
 export default function CatalogPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { outfit, toggleItem } = useOutfit();
+  const { outfit, toggleItem, clearOutfit } = useOutfit();
 
   const [gender, setGender] = useState<GenderFilter>("all");
   const [style, setStyle] = useState<StyleFilter>("all");
@@ -175,6 +175,10 @@ export default function CatalogPage() {
 
   // ── Fitzy send handler ───────────────────────────────────────────────────
   async function handleFitzySend(text: string) {
+    // A new search replaces the visible results — drop any previously
+    // selected outfit items before the new results land.
+    clearOutfit();
+
     const userMsg: FitzyChatMessage = { role: "user", content: text };
     const next = [...fitzyMessages, userMsg];
     setFitzyMessages(next);

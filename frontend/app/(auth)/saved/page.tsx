@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase";
 import catalog, { CatalogItem } from "../../data/catalog";
 import AccountDropdown from "../../components/AccountDropdown";
+import { useOutfit } from "../../lib/outfit-context";
 
 type SavedItemRow    = { id: string; catalog_item_id: string };
 type SavedOutfitRow  = { id: string; catalog_item_ids: string[]; created_at: string };
@@ -152,18 +154,37 @@ export default function SavedPage() {
 // with a single "Remove" button for the whole outfit.
 
 function SavedOutfitCard({ items, onUnsave }: { items: CatalogItem[]; onUnsave: () => void }) {
+  const router = useRouter();
+  const { setOutfitItems } = useOutfit();
+
+  function handleLoadOutfit() {
+    setOutfitItems(items);
+    try {
+      sessionStorage.setItem("fitcheck_auto_review", "1");
+      sessionStorage.setItem("fitcheck_from_saved", "1");
+    } catch {}
+    router.push("/pick-match");
+  }
+
   return (
     <div
       className="rounded-2xl border p-3 flex flex-col gap-3"
       style={{ borderColor: "var(--border)", background: "var(--surface)" }}
     >
-      {/* Item thumbnails */}
+      {/* Item thumbnails — only categories actually present in this outfit are rendered */}
       <div className="flex gap-2 flex-wrap">
         {items.map((item) => (
-          <div key={item.id} className="flex flex-col gap-1" style={{ width: 72 }}>
+          <Link
+            key={item.id}
+            href={`/item/${item.id}`}
+            className="flex flex-col gap-1"
+            style={{ width: 72 }}
+          >
             <div
-              className="relative rounded-xl overflow-hidden"
+              className="relative rounded-xl overflow-hidden transition-colors"
               style={{ width: 72, height: 88, background: "var(--bg)", border: "1px solid var(--border)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
             >
               <Image
                 src={item.imageUrl} alt={item.name} fill
@@ -171,18 +192,12 @@ function SavedOutfitCard({ items, onUnsave }: { items: CatalogItem[]; onUnsave: 
               />
             </div>
             <p
-              className="text-[10px] leading-tight text-center"
-              style={{
-                color: "var(--text-muted)",
-                display: "-webkit-box",
-                WebkitBoxOrient: "vertical",
-                WebkitLineClamp: 2,
-                overflow: "hidden",
-              } as React.CSSProperties}
+              className="text-[10px] leading-tight text-center truncate"
+              style={{ color: "var(--text-muted)" }}
             >
               {item.name}
             </p>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -199,20 +214,34 @@ function SavedOutfitCard({ items, onUnsave }: { items: CatalogItem[]; onUnsave: 
         ))}
       </div>
 
-      {/* Remove button */}
-      <button
-        onClick={onUnsave}
-        className="flex items-center gap-1 text-xs transition-colors focus:outline-none w-fit"
-        style={{ color: "var(--text-muted)" }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--danger)")}
-        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
-        aria-label="Remove saved outfit"
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-        </svg>
-        Remove outfit
-      </button>
+      {/* Actions */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={handleLoadOutfit}
+          className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 shadow-sm transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 w-fit"
+          style={{ background: "#8FB7FF", color: "#1A4A8F", border: "1px solid #8FB7FF", borderRadius: 8 }}
+          aria-label="Load outfit into Pick & Match and review fit"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 1 1-3.5-7.1" /><polyline points="21 3 21 9 15 9" />
+          </svg>
+          Load outfit
+        </button>
+
+        <button
+          onClick={onUnsave}
+          className="flex items-center gap-1 text-xs transition-colors focus:outline-none w-fit"
+          style={{ color: "var(--text-muted)" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--danger)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+          aria-label="Remove saved outfit"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+          Remove outfit
+        </button>
+      </div>
     </div>
   );
 }
