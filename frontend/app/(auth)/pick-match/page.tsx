@@ -296,12 +296,12 @@ export default function PickMatchPage() {
 
       {/* ── Action bar — shown once ≥1 item is selected ── */}
       {hasSelection && (outfitFit.status === "idle" || outfitFit.status === "loading") && (
-        <div className="fixed bottom-6 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none">
+        <div className="fixed bottom-6 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none transition-[transform,opacity] duration-250 ease-out starting:opacity-0 starting:translate-y-3 motion-reduce:transition-none">
 
           {/* Save status toast */}
           {saveStatus === "saved" && (
             <div
-              className="pointer-events-none flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+              className="pointer-events-none flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-90 motion-reduce:transition-none"
               style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}
               role="status"
               aria-live="polite"
@@ -314,7 +314,7 @@ export default function PickMatchPage() {
           )}
           {saveStatus === "error" && (
             <div
-              className="pointer-events-none text-xs font-semibold px-3 py-1.5 rounded-full"
+              className="pointer-events-none text-xs font-semibold px-3 py-1.5 rounded-full transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-90 motion-reduce:transition-none"
               style={{ background: "var(--surface)", color: "var(--danger)", border: "1px solid var(--border)" }}
               role="alert"
               aria-live="assertive"
@@ -329,7 +329,7 @@ export default function PickMatchPage() {
             <button
               onClick={saveOutfit}
               disabled={saveStatus === "saving"}
-              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:active:scale-100"
               style={{
                 background: "var(--surface)",
                 color: "var(--text)",
@@ -360,7 +360,7 @@ export default function PickMatchPage() {
             <button
               onClick={reviewOutfit}
               disabled={outfitFit.status === "loading"}
-              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:active:scale-100"
               style={{
                 background: "var(--accent)",
                 color: "var(--accent-text)",

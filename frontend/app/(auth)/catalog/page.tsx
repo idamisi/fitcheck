@@ -37,7 +37,7 @@ const LABEL: Record<string, string> = {
 // ─── shared pill button ───────────────────────────────────────────────────────
 
 const BTN_BASE =
-  "px-3 py-1 text-xs font-medium rounded-full border transition-colors focus:outline-none focus-visible:ring-2";
+  "px-3 py-1 text-xs font-medium rounded-full border transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.94] focus:outline-none focus-visible:ring-2";
 
 function FilterPill({
   label,
@@ -478,12 +478,12 @@ export default function CatalogPage() {
 
       {/* ── Action bar — shown once ≥1 item is selected (same as Pick & Match) ── */}
       {hasSelection && (outfitFit.status === "idle" || outfitFit.status === "loading") && (
-        <div className="fixed bottom-6 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none">
+        <div className="fixed bottom-6 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none transition-[transform,opacity] duration-250 ease-out starting:opacity-0 starting:translate-y-3 motion-reduce:transition-none">
 
           {/* Save status toast */}
           {saveStatus === "saved" && (
             <div
-              className="pointer-events-none flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+              className="pointer-events-none flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-90 motion-reduce:transition-none"
               style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}
               role="status"
               aria-live="polite"
@@ -496,7 +496,7 @@ export default function CatalogPage() {
           )}
           {saveStatus === "error" && (
             <div
-              className="pointer-events-none text-xs font-semibold px-3 py-1.5 rounded-full"
+              className="pointer-events-none text-xs font-semibold px-3 py-1.5 rounded-full transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-90 motion-reduce:transition-none"
               style={{ background: "var(--surface)", color: "var(--danger)", border: "1px solid var(--border)" }}
               role="alert"
               aria-live="assertive"
@@ -511,7 +511,7 @@ export default function CatalogPage() {
             <button
               onClick={saveOutfit}
               disabled={saveStatus === "saving"}
-              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:active:scale-100"
               style={{
                 background: "var(--surface)",
                 color: "var(--text)",
@@ -542,7 +542,7 @@ export default function CatalogPage() {
             <button
               onClick={reviewOutfit}
               disabled={outfitFit.status === "loading"}
-              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:active:scale-100"
               style={{
                 background: "var(--accent)",
                 color: "var(--accent-text)",
@@ -580,16 +580,17 @@ export default function CatalogPage() {
         <>
           {/* Backdrop — tap outside to dismiss */}
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-40 transition-opacity duration-200 ease-out starting:opacity-0 motion-reduce:transition-none"
             style={{ background: "rgba(11,26,51,0.25)" }}
             onClick={() => setFitzyOpen(false)}
           />
           <div
-            className="fixed bottom-20 right-4 z-50 w-80 rounded-2xl flex flex-col overflow-hidden shadow-lg"
+            className="fixed bottom-20 right-4 z-50 w-80 rounded-2xl flex flex-col overflow-hidden shadow-lg transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-95 motion-reduce:transition-none"
             style={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
               height: 420,
+              transformOrigin: "bottom right",
             }}
           >
             {/* Panel header */}
@@ -632,13 +633,13 @@ export default function CatalogPage() {
           setFitzyOpen((v) => !v);
           setFitzyUnread(false);
         }}
-        className="fixed right-4 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-xl focus:outline-none focus-visible:ring-2 transition-colors"
+        className="fitzy-fab fixed right-4 bottom-6 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-xl focus:outline-none focus-visible:ring-2"
         style={{
-          bottom: hasSelection ? 116 : 24,
+          "--fab-offset": hasSelection ? "-92px" : "0px",
           background: fitzyOpen ? "#0B1A33" : "#8FB7FF",
           color: fitzyOpen ? "#F7F5F1" : "#0B1A33",
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-        }}
+        } as React.CSSProperties}
         aria-label={fitzyOpen ? "Close Fitzy" : "Open Fitzy"}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -650,7 +651,7 @@ export default function CatalogPage() {
         {/* Unread dot */}
         {fitzyUnread && !fitzyOpen && (
           <span
-            className="absolute top-0 right-0 w-2 h-2 rounded-full border-2"
+            className="unread-dot absolute top-0 right-0 w-2 h-2 rounded-full border-2"
             style={{
               background: "#B91C1C",
               borderColor: "#F7F5F1",

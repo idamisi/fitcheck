@@ -484,7 +484,7 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
           <button
             type="button"
             onClick={() => { setIsOpen(true); openManual(); }}
-            className="w-full rounded-md px-4 py-3 text-sm font-semibold transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            className="w-full rounded-md px-4 py-3 text-sm font-semibold transition-[transform,background-color] duration-150 ease-out active:scale-[0.98] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
             style={{ background: "#FFFFFF", color: "#2B3A55", border: "1.5px solid #2B3A55" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF1F6")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
@@ -498,7 +498,7 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
           <button
             type="button"
             onClick={() => { setIsOpen(true); setEstStep(0); setEstError(null); setEstShowFaq(false); setScreen("estimate"); }}
-            className="w-full rounded-md px-4 py-3 text-sm font-semibold transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            className="w-full rounded-md px-4 py-3 text-sm font-semibold transition-[transform,background-color] duration-150 ease-out active:scale-[0.98] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
             style={{ background: "#FFFFFF", color: "#2B3A55", border: "1.5px solid #2B3A55" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF1F6")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
@@ -577,17 +577,17 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
 
                 <div className="flex gap-3">
                   <button type="button" onClick={handleEstBack}
-                    className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                    className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-[transform,background-color] duration-150 ease-out active:scale-[0.98]">
                     Back
                   </button>
                   {estIsLast ? (
                     <button type="button" onClick={handleEstSubmit}
-                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors">
+                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-[transform,background-color] duration-150 ease-out active:scale-[0.98]">
                       Estimate &amp; Review
                     </button>
                   ) : (
                     <button type="button" onClick={handleEstNext}
-                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors">
+                      className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-[transform,background-color] duration-150 ease-out active:scale-[0.98]">
                       Next
                     </button>
                   )}
@@ -661,7 +661,7 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                 <div className="flex gap-3">
                   {step > 0 ? (
                     <button type="button" onClick={handleBack}
-                      className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                      className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-[transform,background-color] duration-150 ease-out active:scale-[0.98]">
                       Back
                     </button>
                   ) : (
@@ -670,12 +670,12 @@ export default function MeasurementForm({ onSubmit, defaultOpen = false, default
                       if (fromReview) { setFromReview(false); setScreen("review"); }
                       else setScreen("choice");
                     }}
-                      className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                      className="flex-1 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-[transform,background-color] duration-150 ease-out active:scale-[0.98]">
                       Back
                     </button>
                   )}
                   <button type="button" onClick={isLast ? handleFinish : handleNext}
-                    className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors">
+                    className="flex-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 transition-[transform,background-color] duration-150 ease-out active:scale-[0.98]">
                     {isLast ? "Review" : "Next"}
                   </button>
                 </div>

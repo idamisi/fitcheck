@@ -218,7 +218,7 @@ function SavedOutfitCard({ items, onUnsave }: { items: CatalogItem[]; onUnsave: 
       <div className="flex items-center gap-4">
         <button
           onClick={handleLoadOutfit}
-          className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 shadow-sm transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 w-fit"
+          className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 shadow-sm transition-[transform,opacity] duration-150 ease-out hover:opacity-90 active:scale-[0.97] focus:outline-none focus-visible:ring-2 w-fit"
           style={{ background: "#8FB7FF", color: "#1A4A8F", border: "1px solid #8FB7FF", borderRadius: 8 }}
           aria-label="Load outfit into Pick & Match and review fit"
         >
@@ -230,7 +230,7 @@ function SavedOutfitCard({ items, onUnsave }: { items: CatalogItem[]; onUnsave: 
 
         <button
           onClick={onUnsave}
-          className="flex items-center gap-1 text-xs transition-colors focus:outline-none w-fit"
+          className="flex items-center gap-1 text-xs transition-[transform,color] duration-150 ease-out active:scale-[0.97] focus:outline-none w-fit"
           style={{ color: "var(--text-muted)" }}
           onMouseEnter={(e) => (e.currentTarget.style.color = "var(--danger)")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}

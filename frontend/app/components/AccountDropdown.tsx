@@ -58,7 +58,7 @@ export default function AccountDropdown() {
     <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-sm font-medium rounded-lg focus:outline-none focus-visible:ring-2 transition-colors px-3 py-1.5"
+        className="flex items-center gap-1.5 text-sm font-medium rounded-lg focus:outline-none focus-visible:ring-2 transition-[transform,border-color] duration-150 ease-out active:scale-[0.97] px-3 py-1.5"
         style={{ color: "var(--text)", background: "var(--surface)", border: "1px solid var(--border)" }}
         aria-haspopup="true"
         aria-expanded={open}
@@ -75,8 +75,8 @@ export default function AccountDropdown() {
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1.5 w-48 rounded-xl border z-50 overflow-hidden"
-          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+          className="absolute right-0 top-full mt-1.5 w-48 rounded-xl border z-50 overflow-hidden transition-[transform,opacity] duration-150 ease-out starting:opacity-0 starting:scale-95 motion-reduce:transition-none motion-reduce:starting:opacity-100 motion-reduce:starting:scale-100"
+          style={{ background: "var(--surface)", borderColor: "var(--border)", transformOrigin: "top right" }}
         >
           {[
             { label: "Saved Items",   href: "/saved" },

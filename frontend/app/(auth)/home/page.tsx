@@ -37,6 +37,12 @@ export default function HomePage() {
   const [messages, setMessages] = useState<FitzyChatMessage[]>([]);
   const [fitzyLoading, setFitzyLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const threadEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll the mini-thread to the newest message
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, fitzyLoading]);
 
   useEffect(() => {
     async function init() {
@@ -118,13 +124,20 @@ export default function HomePage() {
       const data: FitzyOutput = await res.json();
 
       if (data.type === "search") {
+        // Land the reply in visible history first so the conversation isn't
+        // silently abandoned — then hand off to /catalog as before.
+        const withReply: FitzyChatMessage[] = [
+          ...next,
+          { role: "assistant", content: data.reply, itemIds: data.itemIds },
+        ];
+        setMessages(withReply);
         sessionStorage.setItem(
           "fitzy_context",
           JSON.stringify({
             reply: data.reply,
             itemIds: data.itemIds,
             query: text,
-            messages: [...next, { role: "assistant", content: data.reply, itemIds: data.itemIds }],
+            messages: withReply,
           }),
         );
         router.push("/catalog");
@@ -181,6 +194,15 @@ export default function HomePage() {
         .avatar-fluid svg {
           width: 100% !important;
           height: auto !important;
+        }
+        /* Typing indicator dots in the Ask Fitzy mini-thread */
+        .home-fitzy-dot {
+          opacity: 0.5;
+          animation: home-fitzy-dot 1.2s ease-in-out infinite;
+        }
+        @keyframes home-fitzy-dot {
+          0%, 80%, 100% { transform: scale(1); opacity: 0.5; }
+          40%            { transform: scale(1.4); opacity: 1; }
         }
       `}</style>
 
@@ -257,6 +279,69 @@ export default function HomePage() {
               >
                 Ask Fitzy
               </p>
+
+              {/* Mini conversation thread — local to this card, not shared
+                  with the floating Fitzy widget elsewhere in the app. */}
+              {messages.length > 0 && (
+                <div
+                  style={{
+                    maxHeight: "240px",
+                    overflowY: "auto",
+                    display: "flex", flexDirection: "column", gap: "0.5rem",
+                    padding: "0.25rem 0.125rem 0.75rem",
+                  }}
+                >
+                  {messages.map((msg, i) => {
+                    const isUser = msg.role === "user";
+                    return (
+                      <div key={i} style={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start" }}>
+                        <div
+                          style={{
+                            maxWidth: "85%",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.8125rem",
+                            lineHeight: 1.5,
+                            borderRadius: isUser ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                            background: isUser ? "#0B1A33" : "#F7F5F1",
+                            color: isUser ? "#F7F5F1" : "#0B1A33",
+                            border: isUser ? "none" : "1px solid #E2DDD6",
+                          }}
+                        >
+                          {msg.content}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {fitzyLoading && (
+                    <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                      <div
+                        style={{
+                          padding: "0.625rem 0.75rem",
+                          borderRadius: "14px 14px 14px 4px",
+                          background: "#F7F5F1",
+                          border: "1px solid #E2DDD6",
+                          display: "flex", gap: "0.25rem",
+                        }}
+                      >
+                        {[0, 1, 2].map((i) => (
+                          <span
+                            key={i}
+                            className="home-fitzy-dot"
+                            style={{
+                              width: "6px", height: "6px", borderRadius: "50%",
+                              background: "#6B7280",
+                              animationDelay: `${i * 0.2}s`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={threadEndRef} />
+                </div>
+              )}
 
               {/* Input + Send */}
               <form onSubmit={handleSubmit} style={{ display: "flex", gap: "0.5rem" }}>

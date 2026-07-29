@@ -15,6 +15,11 @@
   --accent:      #8FB7FF;   /* ice blue — buttons, links, badges */
   --accent-text: #0B1A33;   /* text ON an ice-blue button */
   --danger:      #B91C1C;   /* errors */
+
+  /* motion — custom eased curves with more punch than the CSS built-ins */
+  --ease-out-strong:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer:        cubic-bezier(0.32, 0.72, 0, 1); /* iOS-like drawer settle */
 }
 
 /* ─── Base ─────────────────────────────────────────────────────────────────── */
@@ -34,3 +39,30 @@ h1, h2, h3, h4, h5, h6,
 
 /* ─── Carousel ─────────────────────────────────────────────────────────────── */
 .ai-picks-carousel::-webkit-scrollbar { display: none; }
+
+/* ─── Fitzy FAB ────────────────────────────────────────────────────────────────
+   Shifts up above the action bar via --fab-offset (translateY, GPU-friendly —
+   never animate `bottom` directly), presses down on tap. */
+.fitzy-fab {
+  transform: translateY(var(--fab-offset, 0px));
+  transition: transform 240ms var(--ease-drawer), background-color 150ms ease, color 150ms ease;
+}
+.fitzy-fab:active {
+  transform: translateY(var(--fab-offset, 0px)) scale(0.92);
+  transition-duration: 90ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fitzy-fab { transition-property: background-color, color; }
+}
+
+/* ─── Unread ping ──────────────────────────────────────────────────────────── */
+@keyframes unread-pulse {
+  0%, 100% { transform: translate(35%, -35%) scale(1); }
+  50%      { transform: translate(35%, -35%) scale(1.3); }
+}
+.unread-dot {
+  animation: unread-pulse 1.6s var(--ease-in-out-strong) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .unread-dot { animation: none; }
+}

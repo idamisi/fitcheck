@@ -384,6 +384,7 @@ export default function ItemDetailPage() {
               <button
                 onClick={handleCheckFit}
                 disabled={fit.status === "loading"}
+                className="active:scale-[0.97] disabled:active:scale-100"
                 style={{
                   padding: "0.625rem 1.25rem",
                   fontSize: "0.9375rem", fontWeight: 600,
@@ -392,7 +393,7 @@ export default function ItemDetailPage() {
                   borderRadius: "8px",
                   cursor: fit.status === "loading" ? "not-allowed" : "pointer",
                   opacity: fit.status === "loading" ? 0.6 : 1,
-                  transition: "opacity 0.15s",
+                  transition: "opacity 0.15s, transform 150ms var(--ease-out-strong)",
                 }}
               >
                 {fit.status === "loading" ? "Checking…" : "Check it fits"}
@@ -404,6 +405,7 @@ export default function ItemDetailPage() {
                   href={item.productUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="active:scale-[0.97]"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: "0.375rem",
                     padding: "0.625rem 1.25rem",
@@ -412,7 +414,7 @@ export default function ItemDetailPage() {
                     border: "1px solid var(--border)",
                     borderRadius: "8px",
                     textDecoration: "none",
-                    transition: "border-color 0.15s",
+                    transition: "border-color 0.15s, transform 150ms var(--ease-out-strong)",
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
                   onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -430,6 +432,7 @@ export default function ItemDetailPage() {
               <button
                 onClick={handleToggleSave}
                 aria-label={savedRowId ? `Unsave ${item.name}` : `Save ${item.name}`}
+                className="active:scale-[0.97]"
                 style={{
                   display: "inline-flex", alignItems: "center", gap: "0.375rem",
                   padding: "0.625rem 1rem",
@@ -438,7 +441,7 @@ export default function ItemDetailPage() {
                   border: "1px solid var(--border)",
                   borderRadius: "8px",
                   cursor: "pointer",
-                  transition: "border-color 0.15s",
+                  transition: "border-color 0.15s, transform 150ms var(--ease-out-strong)",
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -459,6 +462,7 @@ export default function ItemDetailPage() {
               <button
                 onClick={() => item && toggleItem(item)}
                 aria-label={itemInOutfit(item.id) ? `Remove ${item.name} from look` : `Add ${item.name} to look`}
+                className="active:scale-[0.97]"
                 style={{
                   display: "inline-flex", alignItems: "center", gap: "0.375rem",
                   padding: "0.625rem 1rem",
@@ -468,7 +472,7 @@ export default function ItemDetailPage() {
                   border: `1px solid ${itemInOutfit(item.id) ? "var(--text)" : "var(--border)"}`,
                   borderRadius: "8px",
                   cursor: "pointer",
-                  transition: "border-color 0.15s",
+                  transition: "border-color 0.15s, background-color 0.15s, color 0.15s, transform 150ms var(--ease-out-strong)",
                 }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill={itemInOutfit(item.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -543,16 +547,20 @@ export default function ItemDetailPage() {
       {fitzyOpen && (
         <>
           <div
+            className="transition-opacity duration-200 ease-out starting:opacity-0 motion-reduce:transition-none"
             style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(11,26,51,0.25)" }}
             onClick={() => setFitzyOpen(false)}
           />
-          <div style={{
+          <div
+            className="transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-95 motion-reduce:transition-none"
+            style={{
             position: "fixed", bottom: "5rem", right: "1rem", zIndex: 50,
             width: "20rem", height: "26rem",
             borderRadius: "1rem", overflow: "hidden",
             background: "var(--surface)", border: "1px solid var(--border)",
             display: "flex", flexDirection: "column",
             boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+            transformOrigin: "bottom right",
           }}>
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -581,6 +589,7 @@ export default function ItemDetailPage() {
       {/* ── Fitzy FAB ──────────────────────────────────────────────────────── */}
       <button
         onClick={() => { setFitzyOpen((v) => !v); setFitzyUnread(false); }}
+        className="fitzy-fab focus:outline-none focus-visible:ring-2"
         style={{
           position: "fixed", right: "1rem", bottom: "7.25rem", zIndex: 40,
           display: "flex", alignItems: "center", gap: "0.25rem",
@@ -599,12 +608,16 @@ export default function ItemDetailPage() {
           Fitzy
         </span>
         {fitzyUnread && !fitzyOpen && (
-          <span style={{
-            position: "absolute", top: 0, right: 0,
-            width: "0.5rem", height: "0.5rem", borderRadius: "50%",
-            background: "#B91C1C", border: "2px solid var(--bg)",
-            transform: "translate(35%, -35%)",
-          }} aria-label="Unread message" />
+          <span
+            className="unread-dot"
+            style={{
+              position: "absolute", top: 0, right: 0,
+              width: "0.5rem", height: "0.5rem", borderRadius: "50%",
+              background: "#B91C1C", border: "2px solid var(--bg)",
+              transform: "translate(35%, -35%)",
+            }}
+            aria-label="Unread message"
+          />
         )}
       </button>
 

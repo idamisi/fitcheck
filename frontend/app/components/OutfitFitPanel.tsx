@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import catalog, { type CatalogItem } from "../data/catalog";
 import type { OutfitFitOutput } from "../api/outfit-fit/route";
@@ -29,21 +30,72 @@ export default function OutfitFitPanel({
   onClose: () => void;
   onSwap: (item: CatalogItem) => void;
 }) {
-  if (outfitState.status === "idle") return null;
+  const isOpen = outfitState.status !== "idle";
+
+  // Keep the sheet mounted for a beat after closing so the exit transition can
+  // play — it used to vanish instantly on `idle`, both opening and closing.
+  const [mounted, setMounted] = useState(isOpen);
+  const [visible, setVisible] = useState(false);
+  const [reducedMotion] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  // Freeze the last non-idle state so the sheet's content doesn't empty out
+  // mid-close (outfitState flips to "idle" the instant onClose fires).
+  const [displayState, setDisplayState] = useState(outfitState);
+
+  useEffect(() => {
+    function syncDisplayState() {
+      if (outfitState.status !== "idle") setDisplayState(outfitState);
+    }
+    syncDisplayState();
+  }, [outfitState]);
+
+  useEffect(() => {
+    function syncVisibility() {
+      if (isOpen) {
+        setMounted(true);
+        return;
+      }
+      setVisible(false);
+    }
+    syncVisibility();
+
+    if (isOpen) {
+      const raf = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    const timer = setTimeout(() => setMounted(false), 180);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
+  if (!mounted) return null;
 
   return (
     <>
       {/* Scrim */}
       <div
         className="fixed inset-0 z-30"
-        style={{ background: "rgba(11,26,51,0.45)" }}
+        style={{
+          background: "rgba(11,26,51,0.45)",
+          opacity: visible ? 1 : 0,
+          transition: `opacity ${visible ? 220 : 160}ms ${visible ? "ease-out" : "ease-in"}`,
+        }}
         onClick={onClose}
       />
 
       {/* Sheet */}
       <div
         className="fixed bottom-0 left-0 right-0 z-40 rounded-t-2xl flex flex-col max-h-[85vh] overflow-y-auto"
-        style={{ background: "var(--surface)", borderTop: "1px solid var(--border)" }}
+        style={{
+          background: "var(--surface)",
+          borderTop: "1px solid var(--border)",
+          opacity: visible ? 1 : 0,
+          transform: reducedMotion ? "none" : `translateY(${visible ? 0 : 100}%)`,
+          transition: reducedMotion
+            ? `opacity ${visible ? 220 : 160}ms ease`
+            : `transform ${visible ? 260 : 180}ms ${visible ? "var(--ease-drawer)" : "ease-out"}, opacity ${visible ? 260 : 180}ms ${visible ? "ease-out" : "ease-in"}`,
+        }}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
@@ -88,14 +140,14 @@ export default function OutfitFitPanel({
           )}
 
           {/* ── Error state ── */}
-          {outfitState.status === "error" && (
+          {displayState.status === "error" && (
             <div className="py-6 text-center">
               <p className="text-sm font-medium" style={{ color: "var(--danger)" }}>
-                {outfitState.message}
+                {displayState.message}
               </p>
               <button
                 onClick={onClose}
-                className="mt-4 px-6 py-2 text-sm rounded-lg border"
+                className="mt-4 px-6 py-2 text-sm rounded-lg border transition-transform duration-150 ease-out active:scale-[0.97]"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
                 Close
@@ -104,7 +156,7 @@ export default function OutfitFitPanel({
           )}
 
           {/* ── Loading skeleton ── */}
-          {outfitState.status === "loading" && (
+          {displayState.status === "loading" && (
             <div className="flex flex-col gap-3" aria-busy="true" aria-label="Reviewing outfit">
               <p
                 className="text-xs font-semibold uppercase tracking-wider"
@@ -125,8 +177,8 @@ export default function OutfitFitPanel({
           )}
 
           {/* ── Done ── */}
-          {outfitState.status === "done" && (() => {
-            const swap = outfitState.data.suggestedSwap;
+          {displayState.status === "done" && (() => {
+            const swap = displayState.data.suggestedSwap;
             const swapItem = swap ? catalog.find((c) => c.id === swap.itemId) : null;
             return (
               <>
@@ -138,7 +190,7 @@ export default function OutfitFitPanel({
                     Outfit Review
                   </p>
                   <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
-                    {outfitState.data.review}
+                    {displayState.data.review}
                   </p>
                 </div>
 
@@ -153,7 +205,7 @@ export default function OutfitFitPanel({
                     </p>
                     <button
                       onClick={() => { onSwap(swapItem); onClose(); }}
-                      className="flex items-start gap-3 w-full rounded-xl border p-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2"
+                      className="flex items-start gap-3 w-full rounded-xl border p-2.5 text-left transition-[transform,border-color] duration-150 ease-out active:scale-[0.98] focus:outline-none focus-visible:ring-2"
                       style={{ background: "var(--bg)", borderColor: "var(--border)" }}
                       onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
                       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -206,10 +258,10 @@ export default function OutfitFitPanel({
           })()}
 
           {/* Close button — shown whenever we're not in pure error (which has its own) */}
-          {outfitState.status !== "error" && (
+          {displayState.status !== "error" && (
             <button
               onClick={onClose}
-              className="mt-1 w-full py-2.5 text-sm font-semibold rounded-lg border transition-colors"
+              className="mt-1 w-full py-2.5 text-sm font-semibold rounded-lg border transition-transform duration-150 ease-out active:scale-[0.98]"
               style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--bg)" }}
             >
               Close

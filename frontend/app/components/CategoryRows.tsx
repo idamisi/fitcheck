@@ -27,7 +27,7 @@ export function PickCard({
       aria-pressed={selected}
       onClick={onSelect}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
-      className="flex flex-col rounded-2xl overflow-hidden border cursor-pointer transition-shadow focus:outline-none focus-visible:ring-2"
+      className="flex flex-col rounded-2xl overflow-hidden border cursor-pointer transition-[border-color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] focus:outline-none focus-visible:ring-2"
       style={{
         borderColor: selected ? "var(--accent)" : matched ? "#93b4e8" : "var(--border)",
         borderWidth: selected || matched ? 2 : 1,
@@ -202,7 +202,7 @@ export function CategoryRow({
             <button
               onClick={scrollForward}
               aria-label={`Scroll ${label} row forward`}
-              className="flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 transition-opacity hover:opacity-90"
+              className="flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 transition-[opacity,transform] duration-150 ease-out hover:opacity-90 active:scale-90"
               style={{
                 width: 28,
                 height: 28,
