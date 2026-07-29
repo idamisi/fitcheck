@@ -7,13 +7,15 @@ import { createClient } from "../../lib/supabase";
 import catalog, { CatalogItem } from "../../data/catalog";
 import AccountDropdown from "../../components/AccountDropdown";
 
-type SavedRow = { id: string; catalog_item_id: string };
+type SavedItemRow    = { id: string; catalog_item_id: string };
+type SavedOutfitRow  = { id: string; catalog_item_ids: string[]; created_at: string };
 
 export default function SavedPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [rows, setRows] = useState<SavedRow[]>([]);
+  const [itemRows,   setItemRows]   = useState<SavedItemRow[]>([]);
+  const [outfitRows, setOutfitRows] = useState<SavedOutfitRow[]>([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -21,28 +23,54 @@ export default function SavedPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/"); return; }
 
-      const { data } = await supabase
-        .from("saved_items")
-        .select("id, catalog_item_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+      const [itemsRes, outfitsRes] = await Promise.all([
+        supabase
+          .from("saved_items")
+          .select("id, catalog_item_id")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("saved_outfits")
+          .select("id, catalog_item_ids, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+      ]);
 
-      setRows(data ?? []);
+      if (outfitsRes.error) {
+        console.error("[saved-page] saved_outfits fetch failed:", outfitsRes.error);
+      }
+
+      setItemRows(itemsRes.data ?? []);
+      setOutfitRows(outfitsRes.data ?? []);
       setReady(true);
     }
     init();
   }, [router, supabase]);
 
-  async function handleUnsave(rowId: string) {
-    setRows((prev) => prev.filter((r) => r.id !== rowId));
+  async function handleUnsaveItem(rowId: string) {
+    setItemRows((prev) => prev.filter((r) => r.id !== rowId));
     await supabase.from("saved_items").delete().eq("id", rowId);
+  }
+
+  async function handleUnsaveOutfit(rowId: string) {
+    setOutfitRows((prev) => prev.filter((r) => r.id !== rowId));
+    await supabase.from("saved_outfits").delete().eq("id", rowId);
   }
 
   if (!ready) return null;
 
-  const savedItems = rows
+  const savedItems = itemRows
     .map((r) => ({ rowId: r.id, item: catalog.find((c) => c.id === r.catalog_item_id) }))
     .filter((r): r is { rowId: string; item: CatalogItem } => r.item != null);
+
+  // Resolve each outfit row's ids to full CatalogItem objects (silently drop unknown ids).
+  const savedOutfits = outfitRows.map((row) => ({
+    rowId: row.id,
+    createdAt: row.created_at,
+    items: row.catalog_item_ids
+      .map((id) => catalog.find((c) => c.id === id))
+      .filter((i): i is CatalogItem => i != null),
+  }));
 
   return (
     <main className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
@@ -74,6 +102,29 @@ export default function SavedPage() {
 
       <div className="flex-1 px-4 py-6 flex flex-col gap-8">
 
+        {/* ── Saved Outfits ── */}
+        <section>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+            Saved Outfits
+          </p>
+          {savedOutfits.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              No saved outfits yet — select items on Pick &amp; Match and tap Save fit.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {savedOutfits.map(({ rowId, items }) => (
+                <SavedOutfitCard
+                  key={rowId}
+                  items={items}
+                  onUnsave={() => handleUnsaveOutfit(rowId)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── Saved Items ── */}
         <section>
           <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
             Saved Items
@@ -85,25 +136,88 @@ export default function SavedPage() {
           ) : (
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
               {savedItems.map(({ rowId, item }) => (
-                <SavedItemCard key={rowId} item={item} onUnsave={() => handleUnsave(rowId)} />
+                <SavedItemCard key={rowId} item={item} onUnsave={() => handleUnsaveItem(rowId)} />
               ))}
             </div>
           )}
-        </section>
-
-        <section>
-          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
-            Saved Outfits
-          </p>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            No saved outfits yet — outfit building is coming soon.
-          </p>
         </section>
 
       </div>
     </main>
   );
 }
+
+// ─── SavedOutfitCard ──────────────────────────────────────────────────────────
+// Shows all items in a saved outfit as a horizontal strip of thumbnails,
+// with a single "Remove" button for the whole outfit.
+
+function SavedOutfitCard({ items, onUnsave }: { items: CatalogItem[]; onUnsave: () => void }) {
+  return (
+    <div
+      className="rounded-2xl border p-3 flex flex-col gap-3"
+      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+    >
+      {/* Item thumbnails */}
+      <div className="flex gap-2 flex-wrap">
+        {items.map((item) => (
+          <div key={item.id} className="flex flex-col gap-1" style={{ width: 72 }}>
+            <div
+              className="relative rounded-xl overflow-hidden"
+              style={{ width: 72, height: 88, background: "var(--bg)", border: "1px solid var(--border)" }}
+            >
+              <Image
+                src={item.imageUrl} alt={item.name} fill
+                sizes="72px" className="object-cover" unoptimized
+              />
+            </div>
+            <p
+              className="text-[10px] leading-tight text-center"
+              style={{
+                color: "var(--text-muted)",
+                display: "-webkit-box",
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: 2,
+                overflow: "hidden",
+              } as React.CSSProperties}
+            >
+              {item.name}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Category tags */}
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((item) => (
+          <span
+            key={item.id}
+            className="text-[10px] px-1.5 py-0.5 rounded-full capitalize"
+            style={{ background: "var(--bg)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
+          >
+            {item.category}
+          </span>
+        ))}
+      </div>
+
+      {/* Remove button */}
+      <button
+        onClick={onUnsave}
+        className="flex items-center gap-1 text-xs transition-colors focus:outline-none w-fit"
+        style={{ color: "var(--text-muted)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--danger)")}
+        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+        aria-label="Remove saved outfit"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+        </svg>
+        Remove outfit
+      </button>
+    </div>
+  );
+}
+
+// ─── SavedItemCard ────────────────────────────────────────────────────────────
 
 function SavedItemCard({ item, onUnsave }: { item: CatalogItem; onUnsave: () => void }) {
   return (

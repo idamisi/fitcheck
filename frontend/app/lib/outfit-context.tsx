@@ -6,12 +6,13 @@ import type { CatalogItem } from "../data/catalog";
 // ─── types ────────────────────────────────────────────────────────────────────
 
 /** One slot per wearable layer. null = nothing selected for that layer. */
-export type OutfitSlot = "top" | "bottom" | "outerwear";
+export type OutfitSlot = "top" | "bottom" | "outerwear" | "shoe";
 
 export type OutfitState = {
   top:       CatalogItem | null;
   bottom:    CatalogItem | null;
   outerwear: CatalogItem | null;
+  shoe:      CatalogItem | null;
 };
 
 type OutfitContextValue = {
@@ -26,7 +27,7 @@ type OutfitContextValue = {
 
 const OutfitContext = createContext<OutfitContextValue | null>(null);
 
-const EMPTY: OutfitState = { top: null, bottom: null, outerwear: null };
+const EMPTY: OutfitState = { top: null, bottom: null, outerwear: null, shoe: null };
 
 export function OutfitProvider({ children }: { children: React.ReactNode }) {
   const [outfit, setOutfit] = useState<OutfitState>(EMPTY);
@@ -45,7 +46,8 @@ export function OutfitProvider({ children }: { children: React.ReactNode }) {
     (itemId: string) =>
       outfit.top?.id === itemId ||
       outfit.bottom?.id === itemId ||
-      outfit.outerwear?.id === itemId,
+      outfit.outerwear?.id === itemId ||
+      outfit.shoe?.id === itemId,
     [outfit],
   );
 
