@@ -186,12 +186,12 @@ function AvatarSvgBody({
 
 function LayerChip({ outfit, slot, onRemove }: {
   outfit: OutfitState;
-  slot: "top" | "bottom" | "outerwear";
+  slot: "top" | "bottom" | "outerwear" | "shoe";
   onRemove: () => void;
 }) {
   const item = outfit[slot];
   if (!item) return null;
-  const LABEL = { top: "Top", bottom: "Bottom", outerwear: "Outer" };
+  const LABEL = { top: "Top", bottom: "Bottom", outerwear: "Outer", shoe: "Shoes" };
   return (
     <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium"
       style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}>
@@ -214,9 +214,9 @@ function OutfitModal({ measurements, outfit, onClose, onRemove }: {
   measurements: Measurements;
   outfit: OutfitState;
   onClose: () => void;
-  onRemove: (slot: "top" | "bottom" | "outerwear") => void;
+  onRemove: (slot: "top" | "bottom" | "outerwear" | "shoe") => void;
 }) {
-  const hasAny = !!(outfit.top || outfit.bottom || outfit.outerwear);
+  const hasAny = !!(outfit.top || outfit.bottom || outfit.outerwear || outfit.shoe);
 
   return (
     // Portal-style: fixed inset-0, z-[60] so it's above everything including the widget (z-40)
@@ -264,6 +264,7 @@ function OutfitModal({ measurements, outfit, onClose, onRemove }: {
                 <LayerChip outfit={outfit} slot="outerwear" onRemove={() => onRemove("outerwear")} />
                 <LayerChip outfit={outfit} slot="top"       onRemove={() => onRemove("top")} />
                 <LayerChip outfit={outfit} slot="bottom"    onRemove={() => onRemove("bottom")} />
+                <LayerChip outfit={outfit} slot="shoe"      onRemove={() => onRemove("shoe")} />
               </div>
             </>
           ) : (
@@ -283,7 +284,7 @@ export default function OutfitAvatarWidget({ measurements }: { measurements: Mea
   const { outfit, toggleItem, clearOutfit } = useOutfit();
   const [open, setOpen] = useState(false);
 
-  const count = [outfit.top, outfit.bottom, outfit.outerwear].filter(Boolean).length;
+  const count = [outfit.top, outfit.bottom, outfit.outerwear, outfit.shoe].filter(Boolean).length;
   const hasAny = count > 0;
 
   return (
@@ -334,7 +335,7 @@ export default function OutfitAvatarWidget({ measurements }: { measurements: Mea
           measurements={measurements}
           outfit={outfit}
           onClose={() => setOpen(false)}
-          onRemove={(slot) => { const item = outfit[slot]; if (item) toggleItem(item); }}
+          onRemove={(slot: "top" | "bottom" | "outerwear" | "shoe") => { const item = outfit[slot]; if (item) toggleItem(item); }}
         />
       )}
     </>

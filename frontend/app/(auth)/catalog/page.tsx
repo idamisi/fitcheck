@@ -1,35 +1,29 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import Image from "next/image";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import catalog, { CatalogItem } from "../../data/catalog";
-import type { SearchOutput } from "../../api/search/route";
 import type { FitzyOutput } from "../../api/fitzy/route";
 import { createClient } from "../../lib/supabase";
 import AccountDropdown from "../../components/AccountDropdown";
 import { useOutfit } from "../../lib/outfit-context";
-import OutfitAvatarWidget from "../../components/OutfitAvatarWidget";
+import { CategoryRow } from "../../components/CategoryRows";
+import OutfitFitPanel, { type OutfitFitState } from "../../components/OutfitFitPanel";
+import { getStoredMeasurements } from "../../components/FitPanel";
 import type { Measurements } from "../../components/MeasurementForm";
 import FitzyChat from "../../components/FitzyChat";
 import type { FitzyChatMessage } from "../../components/FitzyChat";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-const CATEGORIES = ["all", "top", "bottom", "outerwear", "shoe"] as const;
 const GENDERS = ["all", "men", "women"] as const;
 const STYLES = ["all", "casual", "classic", "smart-casual", "streetwear", "sporty", "formal"] as const;
 
-type CategoryFilter = (typeof CATEGORIES)[number];
 type GenderFilter = (typeof GENDERS)[number];
 type StyleFilter = (typeof STYLES)[number];
 
 const LABEL: Record<string, string> = {
   all: "All",
-  top: "Tops",
-  bottom: "Bottoms",
-  outerwear: "Outerwear",
-  shoe: "Shoes",
   men: "Men",
   women: "Women",
   casual: "Casual",
@@ -39,17 +33,6 @@ const LABEL: Record<string, string> = {
   sporty: "Sporty",
   formal: "Formal",
 };
-
-// ─── measurements stored in sessionStorage by page.tsx ───────────────────────
-function getStoredMeasurements() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem("fitcheck_measurements");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
 
 // ─── shared pill button ───────────────────────────────────────────────────────
 
@@ -80,25 +63,19 @@ function FilterPill({
   );
 }
 
-// ─── types ────────────────────────────────────────────────────────────────────
-
-type SearchState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "done"; data: SearchOutput; query: string }
-  | { status: "error"; message: string };
-
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function CatalogPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { toggleItem, itemInOutfit } = useOutfit();
+  const { outfit, toggleItem } = useOutfit();
 
-  const [category, setCategory] = useState<CategoryFilter>("all");
   const [gender, setGender] = useState<GenderFilter>("all");
   const [style, setStyle] = useState<StyleFilter>("all");
   const [measurements, setMeasurements] = useState<Measurements | null>(null);
+
+  // ── true once the profile fetch has resolved and gender is correctly seeded ──
+  const [profileReady, setProfileReady] = useState(false);
 
   // ── Fitzy chat state (shared thread) ──────────────────────────────────────
   const [fitzyMessages, setFitzyMessages] = useState<FitzyChatMessage[]>([]);
@@ -109,16 +86,18 @@ export default function CatalogPage() {
   // ── Header text (Fitzy's reply for current results) ───────────────────────
   const [fitzyHeaderText, setFitzyHeaderText] = useState<string | null>(null);
 
-  // ── Active Fitzy item IDs (drives grid ordering) ─────────────────────────
+  // ── Active Fitzy item IDs (drives Match badges) ───────────────────────────
   const [fitzyItemIds, setFitzyItemIds] = useState<string[] | null>(null);
 
   // ── Filter panel open/closed ──────────────────────────────────────────────
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // ── Legacy search state (kept for backward compat with URL ?q= flow) ─────
-  const [searchState, setSearchState] = useState<SearchState>({ status: "idle" });
-  // ── saved items ────────────────────────────────────────────────────────────
-  const [savedMap, setSavedMap] = useState<Record<string, string>>({});
+  // ── Outfit review state (reused from Pick & Match) ────────────────────────
+  const [outfitFit, setOutfitFit] = useState<OutfitFitState>({ status: "idle" });
+
+  type SaveStatus = "idle" | "saving" | "saved" | "error";
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const saveToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -136,17 +115,12 @@ export default function CatalogPage() {
         setGender(profile.gender);
       }
 
-      const { data } = await supabase
-        .from("saved_items")
-        .select("id, catalog_item_id")
-        .eq("user_id", user.id);
-
-      const map: Record<string, string> = {};
-      for (const row of data ?? []) map[row.catalog_item_id] = row.id;
-      setSavedMap(map);
-
-      // Load measurements for the outfit widget
+      // Load measurements for the outfit review panel
       setMeasurements(getStoredMeasurements());
+
+      // Mark profile as ready — rows must not render until this point so the
+      // user never sees an unfiltered flash before the gender preference lands.
+      setProfileReady(true);
 
       // Restore Fitzy context passed from home page via sessionStorage
       try {
@@ -164,31 +138,42 @@ export default function CatalogPage() {
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function toggleSave(itemId: string) {
-    const existingRowId = savedMap[itemId];
-
-    if (existingRowId) {
-      // Optimistic unsave
-      setSavedMap((prev) => { const next = { ...prev }; delete next[itemId]; return next; });
-      await supabase.from("saved_items").delete().eq("id", existingRowId);
-    } else {
-      // Optimistic save — use a temp key until the real row id comes back
-      const tempKey = `temp-${itemId}`;
-      setSavedMap((prev) => ({ ...prev, [itemId]: tempKey }));
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: inserted } = await supabase
-        .from("saved_items")
-        .insert({ user_id: user.id, catalog_item_id: itemId })
-        .select("id")
-        .single();
-      if (inserted) {
-        setSavedMap((prev) => ({ ...prev, [itemId]: inserted.id }));
-      }
+  // ── Auto-clear save toast ────────────────────────────────────────────────
+  useEffect(() => {
+    if (saveStatus === "saved" || saveStatus === "error") {
+      saveToastTimer.current = setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }
+    return () => {
+      if (saveToastTimer.current) clearTimeout(saveToastTimer.current);
+    };
+  }, [saveStatus]);
 
-  // ── Fitzy send handler (catalog-side — updates grid in place) ─────────────
+  // ── Filtered catalog per-category ────────────────────────────────────────
+  const filteredByGenderStyle = useMemo(() => {
+    return catalog.filter((item) => {
+      if (gender !== "all" && item.gender !== gender) return false;
+      if (style !== "all" && !item.styleTags.includes(style)) return false;
+      return true;
+    });
+  }, [gender, style]);
+
+  const outerwearItems = useMemo(() => filteredByGenderStyle.filter((i) => i.category === "outerwear"), [filteredByGenderStyle]);
+  const topItems       = useMemo(() => filteredByGenderStyle.filter((i) => i.category === "top"),       [filteredByGenderStyle]);
+  const bottomItems    = useMemo(() => filteredByGenderStyle.filter((i) => i.category === "bottom"),    [filteredByGenderStyle]);
+  const shoeItems      = useMemo(() => filteredByGenderStyle.filter((i) => i.category === "shoe"),      [filteredByGenderStyle]);
+
+  // ── matchIds set — used by CategoryRow to badge Fitzy's picks ────────────
+  const matchIds = useMemo<ReadonlySet<string>>(
+    () => (fitzyItemIds ? new Set(fitzyItemIds) : new Set()),
+    [fitzyItemIds],
+  );
+
+  const matchCount = useMemo(
+    () => (fitzyItemIds ? filteredByGenderStyle.filter((i) => matchIds.has(i.id)).length : 0),
+    [fitzyItemIds, filteredByGenderStyle, matchIds],
+  );
+
+  // ── Fitzy send handler ───────────────────────────────────────────────────
   async function handleFitzySend(text: string) {
     const userMsg: FitzyChatMessage = { role: "user", content: text };
     const next = [...fitzyMessages, userMsg];
@@ -201,7 +186,9 @@ export default function CatalogPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: next.map(({ role, content }) => ({ role, content })),
-          catalog,
+          // Send only the currently visible (gender+style-filtered) items so
+          // Fitzy never picks IDs that would be silently dropped from the rows.
+          catalog: filteredByGenderStyle,
         }),
       });
 
@@ -216,7 +203,6 @@ export default function CatalogPage() {
       const data: FitzyOutput = await res.json();
 
       if (data.type === "search") {
-        // Update grid in-place — no navigation
         setFitzyHeaderText(data.reply);
         setFitzyItemIds(data.itemIds);
         const assistantMsg = { role: "assistant" as const, content: data.reply, itemIds: data.itemIds };
@@ -236,78 +222,75 @@ export default function CatalogPage() {
     }
   }
 
-  // ── manual-filter pass ─────────────────────────────────────────────────────
-  const manualFiltered = useMemo(() => {
-    return catalog.filter((item) => {
-      if (category !== "all" && item.category !== category) return false;
-      if (gender !== "all" && item.gender !== gender) return false;
-      if (style !== "all" && !item.styleTags.includes(style)) return false;
-      return true;
-    });
-  }, [category, gender, style]);
+  // ── Outfit review / save (same logic as Pick & Match) ────────────────────
+  const selectedItems: CatalogItem[] = [
+    outfit.outerwear,
+    outfit.top,
+    outfit.bottom,
+    outfit.shoe,
+  ].filter((i): i is CatalogItem => i !== null);
 
-  // ── grid ordering — Fitzy IDs take priority over legacy searchState ────────
-  const { matchedItems, restItems, matchReasons } = useMemo(() => {
-    // Fitzy results (from /api/fitzy) — primary path
-    if (fitzyItemIds && fitzyItemIds.length > 0) {
-      const matchIds = new Set(fitzyItemIds);
-      const ranked = fitzyItemIds
-        .map((id) => catalog.find((item) => item.id === id))
-        .filter((item): item is CatalogItem => !!item && manualFiltered.includes(item));
-      const rest = manualFiltered.filter((item) => !matchIds.has(item.id));
-      return { matchedItems: ranked, restItems: rest, matchReasons: {} as Record<string, string> };
-    }
+  const hasSelection = selectedItems.length > 0;
 
-    // Legacy /api/search results (backward compat)
-    if (searchState.status === "done") {
-      const matchIds = new Set(searchState.data.matches.map((m) => m.id));
-      const reasons: Record<string, string> = {};
-      for (const m of searchState.data.matches) reasons[m.id] = m.reason;
-      const ranked = searchState.data.matches
-        .map((m) => manualFiltered.find((item) => item.id === m.id))
-        .filter((item): item is CatalogItem => item != null);
-      const rest = manualFiltered.filter((item) => !matchIds.has(item.id));
-      return { matchedItems: ranked, restItems: rest, matchReasons: reasons };
-    }
-
-    return { matchedItems: manualFiltered, restItems: [] as CatalogItem[], matchReasons: {} as Record<string, string> };
-  }, [fitzyItemIds, searchState, manualFiltered]);
-
-  const totalVisible = matchedItems.length + restItems.length;
-
-  // ── legacy search call (kept for any direct ?q= fallback) ──────────────────
-  async function runSearch(q: string) {
-    if (!q.trim()) return;
-    setSearchState({ status: "loading" });
-
-    const activeFilters: Record<string, string> = {};
-    if (category !== "all") activeFilters.category = category;
-    if (gender !== "all") activeFilters.gender = gender;
-    if (style !== "all") activeFilters.style = style;
-
+  const saveOutfit = useCallback(async () => {
+    setSaveStatus("saving");
     try {
-      const res = await fetch("/api/search", {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setSaveStatus("error"); return; }
+      const { error } = await supabase
+        .from("saved_outfits")
+        .insert({
+          user_id: user.id,
+          catalog_item_ids: selectedItems.map((i) => i.id),
+        });
+      if (error) {
+        console.error("[save-fit] saved_outfits insert failed:", error);
+        setSaveStatus("error");
+      } else {
+        setSaveStatus("saved");
+      }
+    } catch (e) {
+      console.error("[save-fit] unexpected error:", e);
+      setSaveStatus("error");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outfit.outerwear?.id, outfit.top?.id, outfit.bottom?.id, outfit.shoe?.id]);
+
+  const reviewOutfit = useCallback(async () => {
+    const storedMeasurements = getStoredMeasurements();
+    if (!storedMeasurements) {
+      setOutfitFit({ status: "error", message: "No measurements found. Please enter your measurements first." });
+      return;
+    }
+    setOutfitFit({ status: "loading" });
+    try {
+      const res = await fetch("/api/outfit-fit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: q,
-          catalog,
-          activeFilters: Object.keys(activeFilters).length ? activeFilters : undefined,
+          userMeasurements: storedMeasurements,
+          items: selectedItems.map((i) => ({
+            id: i.id, name: i.name, category: i.category,
+            color: i.color, styleTags: i.styleTags, sizes: i.sizes,
+          })),
+          catalog: catalog.map((c) => ({
+            id: c.id, name: c.name, category: c.category,
+            color: c.color, styleTags: c.styleTags,
+          })),
         }),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Unknown error" }));
-        setSearchState({ status: "error", message: err.error ?? "Search failed." });
+        setOutfitFit({ status: "error", message: err.error ?? "Request failed." });
         return;
       }
-
-      const data: SearchOutput = await res.json();
-      setSearchState({ status: "done", data, query: q });
+      const data = await res.json();
+      setOutfitFit({ status: "done", data });
     } catch {
-      setSearchState({ status: "error", message: "Network error — please try again." });
+      setOutfitFit({ status: "error", message: "Network error — please try again." });
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outfit.outerwear?.id, outfit.top?.id, outfit.bottom?.id, outfit.shoe?.id]);
 
   // ────────────────────────────────────────────────────────────────────────────
   return (
@@ -336,122 +319,257 @@ export default function CatalogPage() {
         <div style={{ width: 40 }} />
       </header>
 
-      {/* ── Fitzy reply header — replaces static tagline ── */}
+      {/* ── Two-column body (mirrors Pick & Match layout) ── */}
       <div
-        className="px-5 pt-5 pb-3"
-        style={{ borderBottom: "1px solid var(--border)" }}
+        className="flex-1 grid"
+        style={{
+          gridTemplateColumns: "minmax(0, 65fr) minmax(0, 35fr)",
+          alignItems: "start",
+          gap: 0,
+        }}
       >
-        <p
-          className="text-xl font-bold tracking-tight font-heading leading-snug"
-          style={{ color: "var(--text)" }}
-        >
-          {fitzyHeaderText ?? "Browse items."}
-        </p>
-        {fitzyItemIds && (
-          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-            {matchedItems.length} match{matchedItems.length !== 1 ? "es" : ""}
-          </p>
-        )}
-      </div>
+        {/* ── Left: Fitzy header + filters + category rows ── */}
+        <div className="flex flex-col overflow-hidden">
 
-      {/* ── Filters — collapsed behind a toggle ── */}
-      <div
-        className="px-5 py-2 border-b"
-        style={{ background: "var(--bg)", borderColor: "var(--border)" }}
-      >
-        <button
-          onClick={() => setFiltersOpen((v) => !v)}
-          className="flex items-center gap-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 rounded"
-          style={{ color: "var(--text-muted)" }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
-          </svg>
-          Refine results
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{ transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </button>
-
-        {filtersOpen && (
-          <div className="flex flex-col gap-2 mt-2.5">
-            <div className="flex flex-wrap gap-1.5">
-              {CATEGORIES.map((c) => (
-                <FilterPill key={c} label={LABEL[c]} active={category === c} onClick={() => setCategory(c)} />
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {GENDERS.map((g) => (
-                <FilterPill key={g} label={LABEL[g]} active={gender === g} onClick={() => setGender(g)} />
-              ))}
-              <span className="self-center text-xs" style={{ color: "var(--border)" }}>|</span>
-              {STYLES.map((s) => (
-                <FilterPill key={s} label={LABEL[s]} active={style === s} onClick={() => setStyle(s)} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Grid ── */}
-      <div className="flex-1 px-4 py-6 pb-32">
-        {totalVisible === 0 ? (
-          <p className="text-sm text-center mt-12" style={{ color: "var(--text-muted)" }}>
-            No items match the selected filters.
-          </p>
-        ) : (
-          <>
-            {matchedItems.length > 0 && (
-              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
-                {matchedItems.map((item) => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    searchReason={matchReasons[item.id]}
-                    saved={item.id in savedMap}
-                    onToggleSave={() => toggleSave(item.id)}
-                    inOutfit={itemInOutfit(item.id)}
-                    onToggleOutfit={() => toggleItem(item)}
-                  />
-                ))}
-              </div>
-            )}
-
-            {restItems.length > 0 && (
-              <>
-                {matchedItems.length > 0 && (
-                  <div className="flex items-center gap-3 my-6">
-                    <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-                    <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                      More items
-                    </span>
-                    <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-                  </div>
-                )}
-                <div
-                  className="grid gap-4"
-                  style={{
-                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                    opacity: fitzyItemIds ? 0.45 : 1,
-                  }}
+          {/* Fitzy reply header */}
+          <div
+            className="px-5 pt-5 pb-3"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
+            <p
+              className="text-xl font-bold tracking-tight font-heading leading-snug"
+              style={{ color: "var(--text)" }}
+            >
+              {fitzyHeaderText ?? "Browse items."}
+            </p>
+            {fitzyItemIds && matchCount > 0 && (
+              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                {matchCount} match{matchCount !== 1 ? "es" : ""} — look for the{" "}
+                <span
+                  className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                  style={{ background: "var(--accent)", color: "var(--accent-text)" }}
                 >
-                  {restItems.map((item) => (
-                    <ItemCard
-                      key={item.id}
-                      item={item}
-                      saved={item.id in savedMap}
-                      onToggleSave={() => toggleSave(item.id)}
-                      inOutfit={itemInOutfit(item.id)}
-                      onToggleOutfit={() => toggleItem(item)}
-                    />
+                  Match
+                </span>{" "}
+                badge
+              </p>
+            )}
+          </div>
+
+          {/* Filters */}
+          <div
+            className="px-5 py-2 border-b"
+            style={{ background: "var(--bg)", borderColor: "var(--border)" }}
+          >
+            <button
+              onClick={() => setFiltersOpen((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 rounded"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+              </svg>
+              Refine results
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+
+            {filtersOpen && (
+              <div className="flex flex-col gap-2 mt-2.5">
+                <div className="flex flex-wrap gap-1.5">
+                  {GENDERS.map((g) => (
+                    <FilterPill key={g} label={LABEL[g]} active={gender === g} onClick={() => setGender(g)} />
+                  ))}
+                  <span className="self-center text-xs" style={{ color: "var(--border)" }}>|</span>
+                  {STYLES.map((s) => (
+                    <FilterPill key={s} label={LABEL[s]} active={style === s} onClick={() => setStyle(s)} />
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Category rows — only rendered after the profile fetch resolves so
+              the gender filter is already correct on first paint (no unfiltered flash). */}
+          <div className="flex flex-col gap-8 px-4 py-6 pb-32">
+            {!profileReady ? (
+              /* Loading skeleton — four rows matching the four category rows */
+              <div className="flex flex-col gap-8" aria-busy="true" aria-label="Loading catalog">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex flex-col gap-2">
+                    <div className="h-3 w-20 rounded" style={{ background: "var(--border)" }} />
+                    <div className="flex gap-3">
+                      {[1, 2, 3].map((j) => (
+                        <div
+                          key={j}
+                          className="flex-shrink-0 rounded-2xl"
+                          style={{ width: 156, height: 220, background: "var(--border)" }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {outerwearItems.length > 0 && (
+                  <CategoryRow
+                    label="Outerwear"
+                    items={outerwearItems}
+                    matchIds={fitzyItemIds ? matchIds : undefined}
+                  />
+                )}
+                {topItems.length > 0 && (
+                  <CategoryRow
+                    label="Tops"
+                    items={topItems}
+                    matchIds={fitzyItemIds ? matchIds : undefined}
+                  />
+                )}
+                {bottomItems.length > 0 && (
+                  <CategoryRow
+                    label="Bottoms"
+                    items={bottomItems}
+                    matchIds={fitzyItemIds ? matchIds : undefined}
+                  />
+                )}
+                {shoeItems.length > 0 && (
+                  <CategoryRow
+                    label="Shoes"
+                    items={shoeItems}
+                    matchIds={fitzyItemIds ? matchIds : undefined}
+                  />
+                )}
               </>
             )}
-          </>
-        )}
+          </div>
+        </div>
+
+        {/* ── Right: avatar placeholder (same as Pick & Match) ── */}
+        <div
+          className="sticky top-[57px] self-start mx-4 my-6 rounded-2xl flex flex-col items-center justify-center gap-2 max-sm:hidden"
+          style={{
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            minHeight: "calc(100vh - 57px - 48px)",
+          }}
+        >
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+            stroke="var(--border)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+            aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="12" cy="9" r="2.5" />
+            <path d="M7 20c0-2.76 2.24-5 5-5s5 2.24 5 5" />
+          </svg>
+          <p className="text-xs text-center px-6" style={{ color: "var(--text-muted)" }}>
+            Avatar preview
+          </p>
+          <p className="text-[10px] text-center px-6" style={{ color: "var(--border)" }}>
+            coming soon
+          </p>
+        </div>
       </div>
+
+      {/* ── Action bar — shown once ≥1 item is selected (same as Pick & Match) ── */}
+      {hasSelection && (outfitFit.status === "idle" || outfitFit.status === "loading") && (
+        <div className="fixed bottom-6 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none">
+
+          {/* Save status toast */}
+          {saveStatus === "saved" && (
+            <div
+              className="pointer-events-none flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+              style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}
+              role="status"
+              aria-live="polite"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Saved
+            </div>
+          )}
+          {saveStatus === "error" && (
+            <div
+              className="pointer-events-none text-xs font-semibold px-3 py-1.5 rounded-full"
+              style={{ background: "var(--surface)", color: "var(--danger)", border: "1px solid var(--border)" }}
+              role="alert"
+              aria-live="assertive"
+            >
+              Couldn&apos;t save — try again
+            </div>
+          )}
+
+          {/* Button pair */}
+          <div className="pointer-events-auto flex items-center gap-3">
+            {/* Save fit */}
+            <button
+              onClick={saveOutfit}
+              disabled={saveStatus === "saving"}
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+              style={{
+                background: "var(--surface)",
+                color: "var(--text)",
+                border: "1px solid var(--border)",
+                opacity: saveStatus === "saving" ? 0.65 : 1,
+              }}
+            >
+              {saveStatus === "saving" ? (
+                <>
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" strokeOpacity="0.3" />
+                    <path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
+                  Save fit
+                </>
+              )}
+            </button>
+
+            {/* Review my fit */}
+            <button
+              onClick={reviewOutfit}
+              disabled={outfitFit.status === "loading"}
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+              style={{
+                background: "var(--accent)",
+                color: "var(--accent-text)",
+                border: "1px solid var(--accent)",
+                opacity: outfitFit.status === "loading" ? 0.75 : 1,
+              }}
+            >
+              {outfitFit.status === "loading" ? (
+                <>
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" strokeOpacity="0.3" />
+                    <path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                  Reviewing…
+                </>
+              ) : (
+                "Review my fit"
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Outfit fit panel (bottom sheet — same as Pick & Match) ── */}
+      <OutfitFitPanel
+        outfitState={outfitFit}
+        selectedItems={selectedItems}
+        onClose={() => setOutfitFit({ status: "idle" })}
+        onSwap={(item) => { toggleItem(item); setOutfitFit({ status: "idle" }); }}
+      />
 
       {/* ── Fitzy floating panel ── */}
       {fitzyOpen && (
@@ -504,7 +622,7 @@ export default function CatalogPage() {
         </>
       )}
 
-      {/* ── Fitzy FAB — stacked above My Look widget ── */}
+      {/* ── Fitzy FAB — stacked above action bar ── */}
       <button
         onClick={() => {
           setFitzyOpen((v) => !v);
@@ -512,7 +630,7 @@ export default function CatalogPage() {
         }}
         className="fixed right-4 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-xl focus:outline-none focus-visible:ring-2 transition-colors"
         style={{
-          bottom: 116,
+          bottom: hasSelection ? 116 : 24,
           background: fitzyOpen ? "#0B1A33" : "#8FB7FF",
           color: fitzyOpen ? "#F7F5F1" : "#0B1A33",
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
@@ -539,135 +657,6 @@ export default function CatalogPage() {
         )}
       </button>
 
-      {/* ── Outfit avatar widget (My Look) ── */}
-      {measurements && <OutfitAvatarWidget measurements={measurements} />}
     </main>
   );
 }
-
-// ─── ItemCard ─────────────────────────────────────────────────────────────────
-
-function ItemCard({
-  item,
-  searchReason,
-  saved,
-  onToggleSave,
-  inOutfit,
-  onToggleOutfit,
-}: {
-  item: CatalogItem;
-  searchReason?: string;
-  saved: boolean;
-  onToggleSave: () => void;
-  inOutfit: boolean;
-  onToggleOutfit: () => void;
-}) {
-  const router = useRouter();
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <div
-      className="flex flex-col rounded-2xl overflow-hidden border cursor-pointer"
-      style={{
-        borderColor: hovered ? "#C8D8F5" : "var(--border)",
-        background: "var(--surface)",
-        transform: hovered ? "translateY(-2px)" : "none",
-        transition: "border-color 0.15s, transform 0.15s",
-      }}
-      onClick={() => router.push(`/item/${item.id}`)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && router.push(`/item/${item.id}`)}
-      aria-label={`View ${item.name}`}
-    >
-      <div className="relative w-full" style={{ paddingBottom: "120%", background: "var(--bg)" }}>
-        <Image
-          src={item.imageUrl}
-          alt={item.name}
-          fill
-          sizes="(max-width: 640px) 50vw, 200px"
-          className="object-cover"
-          unoptimized
-        />
-        {/* Save button — stopPropagation so it doesn't also trigger card navigation */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleSave(); }}
-          aria-label={saved ? `Unsave ${item.name}` : `Save ${item.name}`}
-          className="absolute top-2 right-2 rounded-full p-1 focus:outline-none focus-visible:ring-2 transition-colors"
-          style={{ background: "rgba(255,255,255,0.85)" }}
-        >
-          {saved ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)" stroke="none">
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
-          )}
-        </button>
-      </div>
-      <div className="flex flex-col gap-1.5 p-3 flex-1">
-        <p className="text-xs font-medium leading-snug" style={{ color: "var(--text)" }}>
-          {item.name}
-        </p>
-        <div className="flex items-baseline gap-1.5 flex-wrap">
-          <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
-            {item.color}
-          </p>
-          {item.price != null && item.currency && (
-            <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>
-              {item.currency === "USD" ? "$" : item.currency}{item.price.toFixed(2)}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-1 mt-auto pt-1">
-          {item.styleTags.map((t) => (
-            <span
-              key={t}
-              className="text-[10px] px-1.5 py-0.5 rounded-full"
-              style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)" }}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-        {searchReason && (
-          <p
-            className="text-[10px] leading-snug pt-1 mt-0.5 border-t"
-            style={{ color: "var(--text-muted)", borderColor: "var(--border)" }}
-          >
-            {searchReason}
-          </p>
-        )}
-        {/* Outfit toggle — stopPropagation so it doesn't also trigger card navigation */}
-        <div className="flex gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={onToggleOutfit}
-            aria-label={inOutfit ? `Remove ${item.name} from look` : `Add ${item.name} to look`}
-            title={inOutfit ? "Remove from My Look" : "Add to My Look"}
-            className="flex-shrink-0 px-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors focus:outline-none focus-visible:ring-2"
-            style={inOutfit
-              ? { background: "var(--text)", color: "var(--surface)", borderColor: "var(--text)" }
-              : { background: "var(--surface)", color: "var(--text)", borderColor: "var(--border)" }}
-          >
-            {inOutfit ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <circle cx="12" cy="7" r="4" />
-                <path d="M12 14c-5 0-8 2.24-8 5v1h16v-1c0-2.76-3-5-8-5z" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="7" r="4" />
-                <path d="M12 14c-5 0-8 2.24-8 5v1h16v-1c0-2.76-3-5-8-5z" />
-              </svg>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ChatMessage = {
@@ -97,36 +99,52 @@ export async function POST(req: NextRequest) {
 
   console.log("[/api/fitzy] history length:", cappedMessages.length);
 
-  let rawResponse: string;
-  try {
+  const fitzyMessages_param = [
+    { role: "user" as const, content: systemPrompt + "\n\nNow begin the conversation." },
+    { role: "assistant" as const, content: '{"type":"chat","reply":"Hey! What are you looking for today?"}' },
+    ...cappedMessages.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })),
+  ];
+
+  async function callOnce(): Promise<string> {
     const completion = await client.chat.completions.create({
       model: "google/gemma-4-31B-it:novita",
-      messages: [
-        { role: "user", content: systemPrompt + "\n\nNow begin the conversation." },
-        { role: "assistant", content: '{"type":"chat","reply":"Hey! What are you looking for today?"}' },
-        ...cappedMessages.map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })),
-      ],
+      messages: fitzyMessages_param,
       max_tokens: 400,
       temperature: 0,
     });
-    rawResponse = completion.choices[0]?.message?.content ?? "";
-    if (!rawResponse) throw new Error("Empty response from model.");
+    const content = completion.choices[0]?.message?.content ?? "";
+    if (!content) throw new Error("Empty response from model.");
+    return content;
+  }
+
+  let rawResponse: string;
+  try {
+    rawResponse = await callOnce();
   } catch (e) {
     const err = e as Error & { status?: number };
-    console.error("[/api/fitzy] model call failed:", err.message);
+    // Single automatic retry only on 429 (rate limit), after a short back-off.
     if (err.status === 429) {
+      try {
+        await sleep(2500);
+        rawResponse = await callOnce();
+      } catch (e2) {
+        const err2 = e2 as Error & { status?: number };
+        console.error("[/api/fitzy] retry after 429 also failed:", err2.message);
+        return NextResponse.json(
+          { error: "Too many requests — please wait a moment and try again." },
+          { status: 429 },
+        );
+      }
+    } else {
+      console.error("[/api/fitzy] model call failed:", err.message);
       return NextResponse.json(
-        { error: "Too many requests — please wait a moment and try again." },
-        { status: 429 },
+        { error: "AI service unavailable — please try again shortly." },
+        { status: 502 },
       );
     }
-    return NextResponse.json(
-      { error: "AI service unavailable — please try again shortly." },
-      { status: 502 },
-    );
   }
 
   console.log("[/api/fitzy] raw response:", rawResponse);
