@@ -388,8 +388,8 @@ export default function ItemDetailPage() {
                 style={{
                   padding: "0.625rem 1.25rem",
                   fontSize: "0.9375rem", fontWeight: 600,
-                  background: "#8FB7FF", color: "#0B1A33",
-                  border: "1.5px solid #8FB7FF",
+                  background: "var(--accent)", color: "var(--accent-text)",
+                  border: "1.5px solid var(--accent)",
                   borderRadius: "8px",
                   cursor: fit.status === "loading" ? "not-allowed" : "pointer",
                   opacity: fit.status === "loading" ? 0.6 : 1,
@@ -416,7 +416,7 @@ export default function ItemDetailPage() {
                     textDecoration: "none",
                     transition: "border-color 0.15s, transform 150ms var(--ease-out-strong)",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
                   onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
                 >
                   Shop now
@@ -443,7 +443,7 @@ export default function ItemDetailPage() {
                   cursor: "pointer",
                   transition: "border-color 0.15s, transform 150ms var(--ease-out-strong)",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
               >
                 {savedRowId ? (
@@ -595,8 +595,8 @@ export default function ItemDetailPage() {
           display: "flex", alignItems: "center", gap: "0.25rem",
           padding: "0.375rem 0.625rem",
           borderRadius: "0.75rem", border: "none", cursor: "pointer",
-          background: fitzyOpen ? "#0B1A33" : "#8FB7FF",
-          color: fitzyOpen ? "#F7F5F1" : "#0B1A33",
+          background: fitzyOpen ? "var(--text)" : "var(--accent)",
+          color: fitzyOpen ? "var(--bg)" : "var(--accent-text)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
         }}
         aria-label={fitzyOpen ? "Close Fitzy" : "Open Fitzy"}
@@ -613,7 +613,7 @@ export default function ItemDetailPage() {
             style={{
               position: "absolute", top: 0, right: 0,
               width: "0.5rem", height: "0.5rem", borderRadius: "50%",
-              background: "#B91C1C", border: "2px solid var(--bg)",
+              background: "var(--danger)", border: "2px solid var(--bg)",
               transform: "translate(35%, -35%)",
             }}
             aria-label="Unread message"

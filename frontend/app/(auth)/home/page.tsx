@@ -177,7 +177,7 @@ export default function HomePage() {
   const greeting = displayName ? `Hey, ${displayName}.` : "Hey.";
 
   return (
-    <div style={{ background: "#F7F5F1", color: "#0B1A33", minHeight: "100vh" }}>
+    <div style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
       <style>{`
         .home-grid {
           display: grid;
@@ -210,8 +210,8 @@ export default function HomePage() {
       <nav
         style={{
           position: "sticky", top: 0, zIndex: 40,
-          background: "#F7F5F1",
-          borderBottom: "1px solid #E2DDD6",
+          background: "var(--bg)",
+          borderBottom: "1px solid var(--border)",
           padding: "1rem clamp(1rem, 4vw, 3rem)",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}
@@ -219,7 +219,7 @@ export default function HomePage() {
         <button
           onClick={() => router.push("/home")}
           style={{
-            fontFamily: "var(--font-heading)", color: "#0B1A33",
+            fontFamily: "var(--font-heading)", color: "var(--text)",
             background: "none", border: "none", padding: 0,
             fontSize: "1.125rem", fontWeight: 700, letterSpacing: "-0.02em",
             cursor: "pointer",
@@ -243,7 +243,7 @@ export default function HomePage() {
         <div style={{ marginBottom: "1.75rem" }}>
           <h1
             style={{
-              fontFamily: "var(--font-heading)", color: "#0B1A33",
+              fontFamily: "var(--font-heading)", color: "var(--text)",
               fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
               fontWeight: 700, letterSpacing: "-0.02em",
               lineHeight: 1.2, margin: 0,
@@ -251,7 +251,7 @@ export default function HomePage() {
           >
             {greeting}
           </h1>
-          <p style={{ color: "#6B7280", fontSize: "0.9375rem", marginTop: "0.375rem" }}>
+          <p style={{ color: "var(--text-muted)", fontSize: "0.9375rem", marginTop: "0.375rem" }}>
             Tell Fitzy what you&apos;re looking for today.
           </p>
         </div>
@@ -262,8 +262,8 @@ export default function HomePage() {
           {/* ── Left: Fitzy search card ──────────────────────────────────── */}
           <div
             style={{
-              background: "#FFFFFF",
-              border: "1px solid #E2DDD6",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
               borderRadius: "16px",
               padding: "clamp(1.25rem, 3vw, 2rem)",
               display: "flex", flexDirection: "column", gap: "1.25rem",
@@ -273,7 +273,7 @@ export default function HomePage() {
             <div>
               <p
                 style={{
-                  fontFamily: "var(--font-heading)", color: "#0B1A33",
+                  fontFamily: "var(--font-heading)", color: "var(--text)",
                   fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem",
                 }}
               >
@@ -302,9 +302,9 @@ export default function HomePage() {
                             fontSize: "0.8125rem",
                             lineHeight: 1.5,
                             borderRadius: isUser ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                            background: isUser ? "#0B1A33" : "#F7F5F1",
-                            color: isUser ? "#F7F5F1" : "#0B1A33",
-                            border: isUser ? "none" : "1px solid #E2DDD6",
+                            background: isUser ? "var(--text)" : "var(--bg)",
+                            color: isUser ? "var(--bg)" : "var(--text)",
+                            border: isUser ? "none" : "1px solid var(--border)",
                           }}
                         >
                           {msg.content}
@@ -319,8 +319,8 @@ export default function HomePage() {
                         style={{
                           padding: "0.625rem 0.75rem",
                           borderRadius: "14px 14px 14px 4px",
-                          background: "#F7F5F1",
-                          border: "1px solid #E2DDD6",
+                          background: "var(--bg)",
+                          border: "1px solid var(--border)",
                           display: "flex", gap: "0.25rem",
                         }}
                       >
@@ -330,7 +330,7 @@ export default function HomePage() {
                             className="home-fitzy-dot"
                             style={{
                               width: "6px", height: "6px", borderRadius: "50%",
-                              background: "#6B7280",
+                              background: "var(--text-muted)",
                               animationDelay: `${i * 0.2}s`,
                             }}
                           />
@@ -356,14 +356,14 @@ export default function HomePage() {
                     flex: 1, minWidth: 0,
                     padding: "0.625rem 0.875rem",
                     fontSize: "0.875rem",
-                    background: "#F7F5F1",
-                    border: "1px solid #E2DDD6",
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
                     borderRadius: "8px",
-                    color: "#0B1A33",
+                    color: "var(--text)",
                     outline: "none",
                   }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
                 />
                 <button
                   type="submit"
@@ -372,8 +372,8 @@ export default function HomePage() {
                     flexShrink: 0,
                     padding: "0.625rem 1rem",
                     fontSize: "0.875rem", fontWeight: 600,
-                    background: "#8FB7FF", color: "#0B1A33",
-                    border: "1.5px solid #8FB7FF",
+                    background: "var(--accent)", color: "var(--accent-text)",
+                    border: "1.5px solid var(--accent)",
                     borderRadius: "8px",
                     cursor: "pointer",
                     opacity: !draft.trim() || fitzyLoading ? 0.4 : 1,
@@ -395,16 +395,16 @@ export default function HomePage() {
                   style={{
                     padding: "0.375rem 0.875rem",
                     fontSize: "0.8125rem", fontWeight: 500,
-                    background: "#F7F5F1", color: "#0B1A33",
-                    border: "1px solid #E2DDD6",
+                    background: "var(--bg)", color: "var(--text)",
+                    border: "1px solid var(--border)",
                     borderRadius: "999px",
                     cursor: fitzyLoading ? "not-allowed" : "pointer",
                     opacity: fitzyLoading ? 0.5 : 1,
                     whiteSpace: "nowrap",
                     transition: "border-color 0.15s",
                   }}
-                  onMouseEnter={(e) => { if (!fitzyLoading) e.currentTarget.style.borderColor = "#8FB7FF"; }}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+                  onMouseEnter={(e) => { if (!fitzyLoading) e.currentTarget.style.borderColor = "var(--accent)"; }}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
                 >
                   {chip}
                 </button>
@@ -412,7 +412,7 @@ export default function HomePage() {
             </div>
 
             {/* Caption */}
-            <p style={{ fontSize: "0.75rem", color: "#6B7280", margin: 0 }}>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: 0 }}>
               Fitzy checks fit against your measurements automatically.
             </p>
           </div>
@@ -420,8 +420,8 @@ export default function HomePage() {
           {/* ── Right: avatar + quick-links card ─────────────────────────── */}
           <div
             style={{
-              background: "#FFFFFF",
-              border: "1px solid #E2DDD6",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
               borderRadius: "16px",
               padding: "clamp(1.25rem, 3vw, 2rem)",
               display: "flex", flexDirection: "column",
@@ -443,7 +443,7 @@ export default function HomePage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%" }}>
               <button
                 onClick={() => router.push("/pick-match")}
-                style={{ ...quickBtnStyle, background: "#8FB7FF", borderColor: "#8FB7FF" }}
+                style={{ ...quickBtnStyle, background: "var(--accent)", borderColor: "var(--accent)" }}
                 onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
                 onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
               >
@@ -452,16 +452,16 @@ export default function HomePage() {
               <button
                 onClick={() => router.push("/saved")}
                 style={quickBtnStyle}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
               >
                 Saved items
               </button>
               <button
                 onClick={() => router.push("/measure")}
                 style={quickBtnStyle}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
               >
                 Your measurements
               </button>
@@ -480,8 +480,8 @@ const quickBtnStyle: React.CSSProperties = {
   width: "100%",
   padding: "0.625rem 1rem",
   fontSize: "0.875rem", fontWeight: 500,
-  background: "#FFFFFF", color: "#0B1A33",
-  border: "1px solid #E2DDD6",
+  background: "var(--surface)", color: "var(--text)",
+  border: "1px solid var(--border)",
   borderRadius: "8px",
   cursor: "pointer",
   textAlign: "center",

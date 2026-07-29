@@ -7,14 +7,16 @@
   --font-body:    var(--font-inter),   "Inter",   system-ui, sans-serif;
 
   /* palette */
-  --bg:          #F7F5F1;   /* off-white page background */
+  --bg:          #FAF6EF;   /* warm ivory page background */
   --surface:     #FFFFFF;   /* cards / panels */
-  --border:      #E2DDD6;   /* 1px borders */
-  --text:        #0B1A33;   /* deep navy — primary text */
-  --text-muted:  #6B7280;   /* secondary / label text */
-  --accent:      #8FB7FF;   /* ice blue — buttons, links, badges */
-  --accent-text: #0B1A33;   /* text ON an ice-blue button */
-  --danger:      #B91C1C;   /* errors */
+  --border:      #E8E0D2;   /* warm taupe borders */
+  --text:        #0B1A33;   /* deep navy — primary text, unchanged brand anchor */
+  --text-muted:  #756E63;   /* warm gray — secondary / label text */
+  --accent:      #6FA0F5;   /* cornflower blue — richer than the old pastel ice-blue */
+  --accent-text: #0B1A33;   /* text ON an accent button */
+  --accent-soft: #E4EDFC;   /* soft accent tint — subtle badges / highlighted backgrounds */
+  --warm-accent: #E8734A;   /* secondary warm coral — used sparingly for variety/delight */
+  --danger:      #C4432E;   /* errors, warmed to sit with the rest of the palette */
 
   /* motion — custom eased curves with more punch than the CSS built-ins */
   --ease-out-strong:    cubic-bezier(0.23, 1, 0.32, 1);

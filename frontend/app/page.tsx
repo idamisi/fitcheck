@@ -24,23 +24,23 @@ const INPUT_STYLE: React.CSSProperties = {
 
 // Primary CTA — ice-blue fill (nav Sign In, auth screens, Check Fit, etc.)
 const BTN_PRIMARY: React.CSSProperties = {
-  background: "#8FB7FF",
-  color: "#0B1A33",
-  border: "1.5px solid #8FB7FF",
+  background: "var(--accent)",
+  color: "var(--text)",
+  border: "1.5px solid var(--accent)",
 };
 
 // Navy CTA — deep navy bg, off-white text (landing "Get started")
 const BTN_NAVY: React.CSSProperties = {
-  background: "#0B1A33",
-  color: "#F7F5F1",
-  border: "1.5px solid #0B1A33",
+  background: "var(--text)",
+  color: "var(--bg)",
+  border: "1.5px solid var(--text)",
 };
 
 // Ghost — white bg, navy text + border (landing "I already have an account")
 const BTN_GHOST: React.CSSProperties = {
-  background: "#FFFFFF",
-  color: "#0B1A33",
-  border: "1.5px solid #0B1A33",
+  background: "var(--surface)",
+  color: "var(--text)",
+  border: "1.5px solid var(--text)",
 };
 
 // Requires a proper domain with a TLD of 2+ letters — rejects "123@damisi".
@@ -157,22 +157,22 @@ function LandingPage({
     : null;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#F7F5F1", color: "#0B1A33" }}>
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--bg)", color: "var(--text)" }}>
       {/* ── Nav ─────────────────────────────────────────────────────── */}
       <nav
         className="sticky top-0 z-40 flex items-center justify-between px-6 py-4"
-        style={{ background: "#F7F5F1", borderBottom: "1px solid #E2DDD6" }}
+        style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}
       >
         <span
           className="text-lg font-bold tracking-tight"
-          style={{ fontFamily: "var(--font-heading)", color: "#0B1A33" }}
+          style={{ fontFamily: "var(--font-heading)", color: "var(--text)" }}
         >
           FitCheck
         </span>
         <button
           onClick={onGoChoice}
           className="px-5 py-2 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors"
-          style={{ background: "#8FB7FF", color: "#0B1A33", border: "1.5px solid #8FB7FF" }}
+          style={{ background: "var(--accent)", color: "var(--text)", border: "1.5px solid var(--accent)" }}
         >
           Sign In
         </button>
@@ -183,11 +183,11 @@ function LandingPage({
         <div className="flex flex-col items-center gap-4 text-center max-w-md">
           <h1
             className="text-4xl font-bold tracking-tight leading-tight"
-            style={{ fontFamily: "var(--font-heading)", color: "#0B1A33" }}
+            style={{ fontFamily: "var(--font-heading)", color: "var(--text)" }}
           >
             Does it actually fit?
           </h1>
-          <p className="text-base leading-relaxed" style={{ color: "#6B7280" }}>
+          <p className="text-base leading-relaxed" style={{ color: "var(--text-muted)" }}>
             Upload an item, get an honest AI verdict on fit, style, and whether
             it's actually worth buying. Built for real bodies, not mannequins.
           </p>
@@ -195,7 +195,7 @@ function LandingPage({
 
         {/* ── Fitzy chat input ──────────────────────────────────────── */}
         <div className="w-full max-w-md flex flex-col gap-2">
-          <p className="text-xs font-medium text-left" style={{ color: "#6B7280" }}>
+          <p className="text-xs font-medium text-left" style={{ color: "var(--text-muted)" }}>
             Ask Fitzy anything about your wardrobe
           </p>
           <div className="flex gap-2">
@@ -207,17 +207,17 @@ function LandingPage({
               placeholder="e.g. What should I wear to a smart-casual dinner?"
               className="flex-1 px-4 py-2.5 text-sm rounded-lg border focus:outline-none"
               style={{
-                background: "#FFFFFF",
-                border: "1px solid #E2DDD6",
-                color: "#0B1A33",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
               }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-              onBlur={(e)  => (e.currentTarget.style.borderColor = "#E2DDD6")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+              onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
             />
             <button
               onClick={() => setGate("fitzy")}
               className="px-4 py-2.5 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors"
-              style={{ background: "#8FB7FF", color: "#0B1A33", border: "1.5px solid #8FB7FF" }}
+              style={{ background: "var(--accent)", color: "var(--text)", border: "1.5px solid var(--accent)" }}
             >
               Ask
             </button>
@@ -230,14 +230,14 @@ function LandingPage({
           <button
             onClick={() => setGate("catalogue")}
             className="flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
-            style={{ background: "#FFFFFF", border: "1px solid #E2DDD6" }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
           >
-            <span className="text-sm font-semibold" style={{ color: "#0B1A33" }}>
+            <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
               Browse catalogue
             </span>
-            <span className="text-xs leading-relaxed" style={{ color: "#6B7280" }}>
+            <span className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
               Filter by category, gender, and style. Find your next fit.
             </span>
           </button>
@@ -246,14 +246,14 @@ function LandingPage({
           <button
             onClick={() => setGate("avatar")}
             className="flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
-            style={{ background: "#FFFFFF", border: "1px solid #E2DDD6" }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
           >
-            <span className="text-sm font-semibold" style={{ color: "#0B1A33" }}>
+            <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
               Your avatar
             </span>
-            <span className="text-xs leading-relaxed" style={{ color: "#6B7280" }}>
+            <span className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
               A 3D model built around your exact measurements.
             </span>
           </button>
@@ -262,14 +262,14 @@ function LandingPage({
           <button
             onClick={() => setGate("fitzy")}
             className="flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
-            style={{ background: "#FFFFFF", border: "1px solid #E2DDD6" }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#8FB7FF")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E2DDD6")}
+            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
           >
-            <span className="text-sm font-semibold" style={{ color: "#0B1A33" }}>
+            <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
               AI fit check
             </span>
-            <span className="text-xs leading-relaxed" style={{ color: "#6B7280" }}>
+            <span className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
               Upload any item and get an honest verdict in seconds.
             </span>
           </button>
@@ -557,14 +557,14 @@ export default function Home() {
             <button
               onClick={() => { setFlowOrigin("choice"); setMode("register"); setError(null); }}
               className="w-full px-8 py-3 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors"
-              style={{ background: "#8FB7FF", color: "#0B1A33", border: "1.5px solid #8FB7FF" }}
+              style={{ background: "var(--accent)", color: "var(--text)", border: "1.5px solid var(--accent)" }}
             >
               Create account
             </button>
             <button
               onClick={() => { setFlowOrigin("choice"); setMode("login"); setError(null); }}
               className="w-full px-8 py-3 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors"
-              style={{ background: "#FFFFFF", color: "#0B1A33", border: "1.5px solid #0B1A33" }}
+              style={{ background: "var(--surface)", color: "var(--text)", border: "1.5px solid var(--text)" }}
             >
               Log in
             </button>

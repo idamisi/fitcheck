@@ -165,7 +165,7 @@ export default function FitzyChat({
                 className="max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed"
                 style={
                   isUser
-                    ? { background: "#0B1A33", color: "#F7F5F1", borderRadius: "18px 18px 4px 18px" }
+                    ? { background: "var(--text)", color: "var(--bg)", borderRadius: "18px 18px 4px 18px" }
                     : { background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "18px 18px 18px 4px" }
                 }
               >
@@ -225,7 +225,7 @@ export default function FitzyChat({
             type="submit"
             disabled={!draft.trim() || loading}
             className="flex-shrink-0 px-3 py-2 text-xs font-semibold rounded-lg focus:outline-none focus-visible:ring-2 disabled:opacity-40 transition-colors"
-            style={{ background: "#8FB7FF", color: "#0B1A33", border: "1.5px solid #8FB7FF" }}
+            style={{ background: "var(--accent)", color: "var(--accent-text)", border: "1.5px solid var(--accent)" }}
           >
             Send
           </button>

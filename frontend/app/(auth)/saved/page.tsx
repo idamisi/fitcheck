@@ -219,7 +219,7 @@ function SavedOutfitCard({ items, onUnsave }: { items: CatalogItem[]; onUnsave: 
         <button
           onClick={handleLoadOutfit}
           className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 shadow-sm transition-[transform,opacity] duration-150 ease-out hover:opacity-90 active:scale-[0.97] focus:outline-none focus-visible:ring-2 w-fit"
-          style={{ background: "#8FB7FF", color: "#1A4A8F", border: "1px solid #8FB7FF", borderRadius: 8 }}
+          style={{ background: "var(--accent)", color: "var(--accent-text)", border: "1px solid var(--accent)", borderRadius: 8 }}
           aria-label="Load outfit into Pick & Match and review fit"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

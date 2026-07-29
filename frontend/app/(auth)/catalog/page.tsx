@@ -636,8 +636,8 @@ export default function CatalogPage() {
         className="fitzy-fab fixed right-4 bottom-6 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-xl focus:outline-none focus-visible:ring-2"
         style={{
           "--fab-offset": hasSelection ? "-92px" : "0px",
-          background: fitzyOpen ? "#0B1A33" : "#8FB7FF",
-          color: fitzyOpen ? "#F7F5F1" : "#0B1A33",
+          background: fitzyOpen ? "var(--text)" : "var(--accent)",
+          color: fitzyOpen ? "var(--bg)" : "var(--accent-text)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
         } as React.CSSProperties}
         aria-label={fitzyOpen ? "Close Fitzy" : "Open Fitzy"}
@@ -653,8 +653,8 @@ export default function CatalogPage() {
           <span
             className="unread-dot absolute top-0 right-0 w-2 h-2 rounded-full border-2"
             style={{
-              background: "#B91C1C",
-              borderColor: "#F7F5F1",
+              background: "var(--danger)",
+              borderColor: "var(--bg)",
               transform: "translate(35%, -35%)",
             }}
             aria-label="Unread message"

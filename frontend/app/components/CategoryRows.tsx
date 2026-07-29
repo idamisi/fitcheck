@@ -29,7 +29,7 @@ export function PickCard({
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
       className="flex flex-col rounded-2xl overflow-hidden border cursor-pointer transition-[border-color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] focus:outline-none focus-visible:ring-2"
       style={{
-        borderColor: selected ? "var(--accent)" : matched ? "#93b4e8" : "var(--border)",
+        borderColor: selected ? "var(--accent)" : matched ? "color-mix(in srgb, var(--accent) 55%, white)" : "var(--border)",
         borderWidth: selected || matched ? 2 : 1,
         background: "var(--surface)",
         boxShadow: selected ? "0 0 0 2px var(--accent)" : undefined,
@@ -207,8 +207,8 @@ export function CategoryRow({
                 width: 28,
                 height: 28,
                 background: "var(--surface)",
-                border: "1.5px solid #8FB7FF",
-                color: "#0B1A33",
+                border: "1.5px solid var(--accent)",
+                color: "var(--text)",
                 boxShadow: "0 1px 6px rgba(11,26,51,0.12)",
               }}
             >
