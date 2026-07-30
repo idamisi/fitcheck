@@ -298,7 +298,7 @@ export default function CatalogPage() {
 
   // ────────────────────────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
+    <main className="app-refresh app-catalog min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
 
       {/* Account dropdown — fixed top-right */}
       <div className="fixed top-0 right-0 z-30 px-5 py-3" style={{ pointerEvents: "none" }}>
@@ -341,7 +341,7 @@ export default function CatalogPage() {
             style={{ borderBottom: "1px solid var(--border)" }}
           >
             <p
-              className="text-xl font-bold tracking-tight font-heading leading-snug"
+              className="app-page-title text-xl font-bold tracking-tight font-heading leading-snug"
               style={{ color: "var(--text)" }}
             >
               {fitzyHeaderText ?? "Browse items."}
@@ -350,7 +350,7 @@ export default function CatalogPage() {
               <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
                 {matchCount} match{matchCount !== 1 ? "es" : ""} — look for the{" "}
                 <span
-                  className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                  className="app-match-badge inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md"
                   style={{ background: "var(--accent)", color: "var(--accent-text)" }}
                 >
                   Match

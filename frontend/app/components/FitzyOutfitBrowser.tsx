@@ -1,32 +1,191 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+/**
+ * FitzyOutfitBrowser
+ * ──────────────────
+ * Shared component used by both /pick-match and /catalog (Fitzy search results).
+ *
+ * Props:
+ *   fitzyMatchIds  – When provided, each card in this set gets a "Match" badge
+ *                    and a slightly bolder accent border. Items are NOT reordered;
+ *                    the full catalog's natural order is preserved.
+ *   headerText     – Optional reasoning text shown above the category rows
+ *                    (Fitzy's reply, e.g. "I've put together some polished…").
+ */
+
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import catalog, { CatalogItem } from "../../data/catalog";
-import AccountDropdown from "../../components/AccountDropdown";
-import { useOutfit } from "../../lib/outfit-context";
-import OutfitFitPanel, { type OutfitFitState } from "../../components/OutfitFitPanel";
-import { getStoredMeasurements } from "../../components/FitPanel";
-import { createClient } from "../../lib/supabase";
-import { CategoryRow } from "../../components/CategoryRows";
+import catalog, { CatalogItem } from "../data/catalog";
+import { useOutfit } from "../lib/outfit-context";
+import OutfitFitPanel, { type OutfitFitState } from "./OutfitFitPanel";
+import { getStoredMeasurements } from "./FitPanel";
+import { createClient } from "../lib/supabase";
 
-type GenderFilter = "all" | "men" | "women";
+// ─── data slices (full catalog, natural order) ────────────────────────────────
 
-// ─── page ─────────────────────────────────────────────────────────────────────
+const outerwearItems = catalog.filter((i) => i.category === "outerwear");
+const topItems       = catalog.filter((i) => i.category === "top");
+const bottomItems    = catalog.filter((i) => i.category === "bottom");
+const shoeItems      = catalog.filter((i) => i.category === "shoe");
 
-export default function PickMatchPage() {
+// ─── PickCard ─────────────────────────────────────────────────────────────────
+// Tappable card that highlights with an accent-blue border when selected.
+// When `isFitzyMatch` is true a "Match" badge is shown in the top-left corner.
+
+function PickCard({
+  item,
+  selected,
+  onSelect,
+  isFitzyMatch,
+}: {
+  item: CatalogItem;
+  selected: boolean;
+  onSelect: () => void;
+  isFitzyMatch?: boolean;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
+      className="flex flex-col rounded-2xl overflow-hidden border cursor-pointer transition-shadow focus:outline-none focus-visible:ring-2"
+      style={{
+        borderColor: selected ? "var(--accent)" : isFitzyMatch ? "var(--accent)" : "var(--border)",
+        borderWidth: selected || isFitzyMatch ? 2 : 1,
+        background: "var(--surface)",
+        boxShadow: selected ? "0 0 0 2px var(--accent)" : undefined,
+      }}
+    >
+      <div className="relative w-full" style={{ paddingBottom: "120%", background: "var(--bg)" }}>
+        <Image
+          src={item.imageUrl}
+          alt={item.name}
+          fill
+          sizes="(max-width: 640px) 50vw, 160px"
+          className="object-cover"
+          unoptimized
+        />
+        {/* Match badge — top-left, only when this item is in Fitzy's selection */}
+        {isFitzyMatch && (
+          <span
+            className="absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+            style={{
+              background: "var(--accent)",
+              color: "var(--accent-text)",
+              lineHeight: 1.4,
+            }}
+            aria-label="Fitzy match"
+          >
+            Match
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col gap-1 p-3">
+        <p className="text-xs font-medium leading-snug" style={{ color: "var(--text)" }}>
+          {item.name}
+        </p>
+        <div className="flex items-baseline gap-1.5 flex-wrap">
+          <p className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
+            {item.color}
+          </p>
+          {item.price != null && item.currency && (
+            <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>
+              {item.currency === "USD" ? "$" : item.currency}{item.price.toFixed(2)}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1 mt-1">
+          {item.styleTags.map((t) => (
+            <span
+              key={t}
+              className="text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)" }}
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CategoryRow ──────────────────────────────────────────────────────────────
+// One horizontally scrollable row for a single clothing category.
+// Items stay in catalog order; matched items are badged but not reordered.
+
+function CategoryRow({
+  label,
+  items,
+  matchIds,
+}: {
+  label: string;
+  items: CatalogItem[];
+  matchIds: Set<string>;
+}) {
+  const { toggleItem, itemInOutfit } = useOutfit();
+
+  return (
+    <div>
+      <h2
+        className="text-xs font-semibold uppercase tracking-wider px-4 mb-2"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {label}
+      </h2>
+      <div
+        className="ai-picks-carousel flex gap-3 overflow-x-auto -mx-4 px-4"
+        style={{
+          scrollSnapType: "x mandatory",
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
+          paddingRight: "2rem",
+        } as React.CSSProperties}
+      >
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="flex-shrink-0"
+            style={{ width: 156, scrollSnapAlign: "start" }}
+          >
+            <PickCard
+              item={item}
+              selected={itemInOutfit(item.id)}
+              onSelect={() => toggleItem(item)}
+              isFitzyMatch={matchIds.size > 0 ? matchIds.has(item.id) : undefined}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── FitzyOutfitBrowser ───────────────────────────────────────────────────────
+
+export default function FitzyOutfitBrowser({
+  fitzyMatchIds,
+  headerText,
+  pageTitle = "Pick & Match",
+  backPath = "/home",
+}: {
+  /** Item IDs from Fitzy's search results. If non-empty, cards get Match badges. */
+  fitzyMatchIds?: string[];
+  /** Fitzy's reasoning text, shown above the category rows. */
+  headerText?: string;
+  /** Page heading shown in the sticky header. */
+  pageTitle?: string;
+  /** Path to navigate to when Back is pressed. */
+  backPath?: string;
+}) {
   const router = useRouter();
   const { outfit, toggleItem } = useOutfit();
   const supabase = createClient();
 
-  const [gender, setGender] = useState<GenderFilter>("all");
-
-  // ── true once the profile fetch has resolved and gender is correctly seeded ──
-  const [profileReady, setProfileReady] = useState(false);
-
-  // ── true if this page was reached via "Load outfit" on the Saved page —
-  // changes where the Back button points (→ /saved instead of → /home). ──
-  const [cameFromSaved, setCameFromSaved] = useState(false);
+  const matchIds = new Set(fitzyMatchIds ?? []);
 
   const [outfitFit, setOutfitFit] = useState<OutfitFitState>({ status: "idle" });
 
@@ -45,53 +204,6 @@ export default function PickMatchPage() {
 
   const hasSelection = selectedItems.length > 0;
 
-  // Seed the gender filter from the user's profile before anything renders,
-  // so rows never show an unfiltered flash on load (same fix as /catalog).
-  useEffect(() => {
-    async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.replace("/"); return; }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("gender")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile?.gender === "men" || profile?.gender === "women") {
-        setGender(profile.gender);
-      }
-
-      setProfileReady(true);
-    }
-    init();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // "Load outfit" (from Saved) sets a one-shot flag before navigating here so
-  // the Back button can return to /saved instead of the default /home.
-  useEffect(() => {
-    function restoreFromSaved() {
-      try {
-        if (sessionStorage.getItem("fitcheck_from_saved") === "1") {
-          setCameFromSaved(true);
-          sessionStorage.removeItem("fitcheck_from_saved");
-        }
-      } catch {}
-    }
-    restoreFromSaved();
-  }, []);
-
-  // ── Gender-filtered catalog per-category ─────────────────────────────────
-  const filteredByGender = useMemo(
-    () => (gender === "all" ? catalog : catalog.filter((i) => i.gender === gender)),
-    [gender],
-  );
-
-  const outerwearItems = useMemo(() => filteredByGender.filter((i) => i.category === "outerwear"), [filteredByGender]);
-  const topItems       = useMemo(() => filteredByGender.filter((i) => i.category === "top"),       [filteredByGender]);
-  const bottomItems    = useMemo(() => filteredByGender.filter((i) => i.category === "bottom"),    [filteredByGender]);
-  const shoeItems      = useMemo(() => filteredByGender.filter((i) => i.category === "shoe"),      [filteredByGender]);
-
   // Auto-clear the save toast after 3 s.
   useEffect(() => {
     if (saveStatus === "saved" || saveStatus === "error") {
@@ -106,10 +218,7 @@ export default function PickMatchPage() {
     setSaveStatus("saving");
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setSaveStatus("error");
-        return;
-      }
+      if (!user) { setSaveStatus("error"); return; }
       const { error } = await supabase
         .from("saved_outfits")
         .insert({
@@ -173,34 +282,11 @@ export default function PickMatchPage() {
     } catch {
       setOutfitFit({ status: "error", message: "Network error — please try again." });
     }
-  // selectedItems identity changes each render; compare by item ids instead
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outfit.outerwear?.id, outfit.top?.id, outfit.bottom?.id, outfit.shoe?.id]);
 
-  // "Load outfit" (from Saved) sets a one-shot flag before navigating here so
-  // the review panel opens immediately instead of requiring a manual click.
-  const autoReviewRan = useRef(false);
-  useEffect(() => {
-    if (autoReviewRan.current || !hasSelection) return;
-    let shouldAutoReview = false;
-    try {
-      shouldAutoReview = sessionStorage.getItem("fitcheck_auto_review") === "1";
-    } catch {}
-    if (!shouldAutoReview) return;
-    autoReviewRan.current = true;
-    try {
-      sessionStorage.removeItem("fitcheck_auto_review");
-    } catch {}
-    reviewOutfit();
-  }, [hasSelection, reviewOutfit]);
-
   return (
-    <main className="app-refresh app-pick-match min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
-
-      {/* Account dropdown — fixed top-right */}
-      <div className="fixed top-0 right-0 z-30 px-5 py-3" style={{ pointerEvents: "none" }}>
-        <div style={{ pointerEvents: "auto" }}><AccountDropdown /></div>
-      </div>
+    <main className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
 
       {/* ── Header ── */}
       <header
@@ -208,7 +294,7 @@ export default function PickMatchPage() {
         style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
         <button
-          onClick={() => router.push(cameFromSaved ? "/saved" : "/home")}
+          onClick={() => router.push(backPath)}
           className="flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded-lg"
           style={{ color: "var(--text-muted)" }}
           onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
@@ -221,13 +307,33 @@ export default function PickMatchPage() {
           Back
         </button>
         <h1
-          className="app-page-title text-sm font-semibold font-heading absolute left-1/2 -translate-x-1/2"
+          className="text-sm font-semibold font-heading absolute left-1/2 -translate-x-1/2"
           style={{ color: "var(--text)" }}
         >
-          Pick &amp; Match
+          {pageTitle}
         </h1>
         <div style={{ width: 40 }} />
       </header>
+
+      {/* ── Fitzy reasoning header (shown when fitzyMatchIds are present) ── */}
+      {headerText && (
+        <div
+          className="px-5 pt-5 pb-4"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <p
+            className="text-sm leading-relaxed"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {headerText}
+          </p>
+          {matchIds.size > 0 && (
+            <p className="text-[11px] mt-1.5 font-medium" style={{ color: "var(--accent)" }}>
+              {matchIds.size} item{matchIds.size !== 1 ? "s" : ""} highlighted by Fitzy
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Two-column body ── */}
       <div
@@ -238,34 +344,13 @@ export default function PickMatchPage() {
           gap: 0,
         }}
       >
-        {/* ── Left: category rows — only rendered after the profile fetch
-              resolves so the gender filter is already correct on first paint
-              (no unfiltered flash). ── */}
+        {/* ── Left: category rows ── */}
         <div className="flex flex-col gap-8 px-4 py-6 overflow-hidden">
-          {!profileReady ? (
-            <div className="flex flex-col gap-8" aria-busy="true" aria-label="Loading catalog">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex flex-col gap-2">
-                  <div className="h-3 w-20 rounded" style={{ background: "var(--border)" }} />
-                  <div className="flex gap-3">
-                    {[1, 2, 3].map((j) => (
-                      <div
-                        key={j}
-                        className="flex-shrink-0 rounded-2xl"
-                        style={{ width: 156, height: 220, background: "var(--border)" }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              {outerwearItems.length > 0 && <CategoryRow label="Outerwear" items={outerwearItems} />}
-              {topItems.length > 0 && <CategoryRow label="Tops" items={topItems} />}
-              {bottomItems.length > 0 && <CategoryRow label="Bottoms" items={bottomItems} />}
-              {shoeItems.length > 0 && <CategoryRow label="Shoes" items={shoeItems} />}
-            </>
+          <CategoryRow label="Outerwear" items={outerwearItems} matchIds={matchIds} />
+          <CategoryRow label="Tops"      items={topItems}       matchIds={matchIds} />
+          <CategoryRow label="Bottoms"   items={bottomItems}    matchIds={matchIds} />
+          {shoeItems.length > 0 && (
+            <CategoryRow label="Shoes"   items={shoeItems}      matchIds={matchIds} />
           )}
         </div>
 
@@ -296,12 +381,12 @@ export default function PickMatchPage() {
 
       {/* ── Action bar — shown once ≥1 item is selected ── */}
       {hasSelection && (outfitFit.status === "idle" || outfitFit.status === "loading") && (
-        <div className="fixed bottom-6 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none transition-[transform,opacity] duration-250 ease-out starting:opacity-0 starting:translate-y-3 motion-reduce:transition-none">
+        <div className="fixed bottom-6 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none">
 
           {/* Save status toast */}
           {saveStatus === "saved" && (
             <div
-              className="pointer-events-none flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-90 motion-reduce:transition-none"
+              className="pointer-events-none flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
               style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}
               role="status"
               aria-live="polite"
@@ -314,7 +399,7 @@ export default function PickMatchPage() {
           )}
           {saveStatus === "error" && (
             <div
-              className="pointer-events-none text-xs font-semibold px-3 py-1.5 rounded-full transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-90 motion-reduce:transition-none"
+              className="pointer-events-none text-xs font-semibold px-3 py-1.5 rounded-full"
               style={{ background: "var(--surface)", color: "var(--danger)", border: "1px solid var(--border)" }}
               role="alert"
               aria-live="assertive"
@@ -329,7 +414,7 @@ export default function PickMatchPage() {
             <button
               onClick={saveOutfit}
               disabled={saveStatus === "saving"}
-              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:active:scale-100"
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
               style={{
                 background: "var(--surface)",
                 color: "var(--text)",
@@ -360,7 +445,7 @@ export default function PickMatchPage() {
             <button
               onClick={reviewOutfit}
               disabled={outfitFit.status === "loading"}
-              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:active:scale-100"
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
               style={{
                 background: "var(--accent)",
                 color: "var(--accent-text)",

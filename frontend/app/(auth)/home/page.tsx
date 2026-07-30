@@ -177,7 +177,7 @@ export default function HomePage() {
   const greeting = displayName ? `Hey, ${displayName}.` : "Hey.";
 
   return (
-    <div style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
+    <div className="app-refresh app-home" style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
       <style>{`
         .home-grid {
           display: grid;
@@ -242,6 +242,7 @@ export default function HomePage() {
         {/* ── Greeting ─────────────────────────────────────────────────────── */}
         <div style={{ marginBottom: "1.75rem" }}>
           <h1
+            className="app-page-title"
             style={{
               fontFamily: "var(--font-heading)", color: "var(--text)",
               fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
@@ -272,6 +273,7 @@ export default function HomePage() {
           >
             <div>
               <p
+                className="app-section-title"
                 style={{
                   fontFamily: "var(--font-heading)", color: "var(--text)",
                   fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem",
@@ -443,6 +445,7 @@ export default function HomePage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%" }}>
               <button
                 onClick={() => router.push("/pick-match")}
+                className="app-accent-blue"
                 style={{ ...quickBtnStyle, background: "var(--accent)", borderColor: "var(--accent)" }}
                 onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
                 onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
@@ -451,6 +454,7 @@ export default function HomePage() {
               </button>
               <button
                 onClick={() => router.push("/saved")}
+                className="app-accent-orange"
                 style={quickBtnStyle}
                 onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -459,6 +463,7 @@ export default function HomePage() {
               </button>
               <button
                 onClick={() => router.push("/measure")}
+                className="app-accent-green"
                 style={quickBtnStyle}
                 onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}

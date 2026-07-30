@@ -75,7 +75,7 @@ export default function SavedPage() {
   }));
 
   return (
-    <main className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
+    <main className="app-refresh app-saved min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
 
       {/* Account dropdown — fixed top-right */}
       <div className="fixed top-0 right-0 z-30 px-5 py-3" style={{ pointerEvents: "none" }}>
@@ -98,7 +98,7 @@ export default function SavedPage() {
           </svg>
           Back
         </button>
-        <span className="text-sm font-semibold font-heading" style={{ color: "var(--text)" }}>Saved</span>
+        <span className="app-page-title text-sm font-semibold font-heading" style={{ color: "var(--text)" }}>Saved</span>
         <div style={{ width: 40 }} />
       </header>
 
@@ -106,7 +106,7 @@ export default function SavedPage() {
 
         {/* ── Saved Outfits ── */}
         <section>
-          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+          <p className="app-section-title saved-outfits-title text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
             Saved Outfits
           </p>
           {savedOutfits.length === 0 ? (
@@ -128,7 +128,7 @@ export default function SavedPage() {
 
         {/* ── Saved Items ── */}
         <section>
-          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+          <p className="app-section-title saved-items-title text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
             Saved Items
           </p>
           {savedItems.length === 0 ? (
@@ -206,7 +206,7 @@ function SavedOutfitCard({ items, onUnsave }: { items: CatalogItem[]; onUnsave: 
         {items.map((item) => (
           <span
             key={item.id}
-            className="text-[10px] px-1.5 py-0.5 rounded-full capitalize"
+            className={`category-accent category-${item.category} text-[10px] px-1.5 py-0.5 rounded-full capitalize`}
             style={{ background: "var(--bg)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
           >
             {item.category}

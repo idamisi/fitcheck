@@ -68,3 +68,600 @@ h1, h2, h3, h4, h5, h6,
 @media (prefers-reduced-motion: reduce) {
   .unread-dot { animation: none; }
 }
+
+/* ─── Landing campaign ───────────────────────────────────────────────
+   A deliberately loud fashion-editorial layer. Kept selector-scoped so
+   authentication and application logic remain completely untouched. */
+.landing-redesign {
+  --bg: #f2f0e9;
+  --surface: #fffdf5;
+  --border: #151515;
+  --text: #111111;
+  --text-muted: #52504a;
+  --accent: #ff4f00;
+  --accent-text: #111111;
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+}
+
+.landing-redesign::before {
+  content: "REAL BODIES / REAL FIT / REAL OPINIONS / ";
+  position: fixed;
+  z-index: 45;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 29px;
+  padding: 6px 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #f7f3e8;
+  background: #111;
+  border-top: 1px solid #111;
+  font: 800 11px/1 var(--font-body);
+  letter-spacing: .24em;
+  text-align: center;
+}
+
+.landing-nav {
+  min-height: 78px;
+  padding-inline: clamp(20px, 4vw, 72px) !important;
+  background: rgba(242, 240, 233, .92) !important;
+  border-bottom: 2px solid #111 !important;
+  backdrop-filter: blur(12px);
+}
+
+.landing-logo {
+  font-family: var(--font-manrope), "Manrope", system-ui, sans-serif !important;
+  font-size: clamp(21px, 2vw, 28px) !important;
+  font-weight: 700 !important;
+  letter-spacing: -.045em !important;
+  text-transform: uppercase;
+}
+
+.landing-signin {
+  padding: 12px 22px !important;
+  color: #f7f3e8 !important;
+  background: #111 !important;
+  border: 2px solid #111 !important;
+  border-radius: 999px !important;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  box-shadow: 5px 5px 0 #ff4f00;
+  transition: transform 150ms ease, box-shadow 150ms ease !important;
+}
+
+.landing-signin:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 #ff4f00;
+}
+
+.landing-hero {
+  min-height: calc(100vh - 78px);
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.05fr) minmax(340px, .95fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-items: center;
+  column-gap: clamp(48px, 8vw, 140px) !important;
+  row-gap: 34px !important;
+  padding: clamp(56px, 7vw, 110px) clamp(20px, 6vw, 110px) 90px !important;
+  background:
+    linear-gradient(90deg, transparent 49.9%, rgba(17,17,17,.12) 50%, transparent 50.1%),
+    linear-gradient(rgba(17,17,17,.055) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 64px;
+}
+
+.landing-hero::before {
+  content: "FIT\\A WITHOUT\\A THE FICTION.";
+  grid-column: 1;
+  grid-row: 1;
+  white-space: pre;
+  color: #111;
+  font: 800 clamp(64px, 8.1vw, 142px)/.76 var(--font-heading);
+  letter-spacing: -.085em;
+  text-transform: uppercase;
+  transform: translateY(-8px);
+}
+
+.landing-hero::after {
+  content: "AI-POWERED WARDROBE INTELLIGENCE · 2026";
+  position: absolute;
+  top: 28px;
+  left: clamp(20px, 6vw, 110px);
+  color: #111;
+  font: 800 10px/1 var(--font-body);
+  letter-spacing: .18em;
+}
+
+.landing-silhouettes {
+  display: none;
+}
+
+.landing-copy {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  max-width: none !important;
+  align-items: flex-start !important;
+  text-align: left !important;
+  padding: clamp(28px, 4vw, 52px);
+  color: #f7f3e8;
+  background: #1d32ff;
+  border: 2px solid #111;
+  box-shadow: 14px 14px 0 #111;
+  transform: rotate(1.5deg);
+}
+
+.landing-copy h1 {
+  font-size: clamp(50px, 6.5vw, 104px) !important;
+  color: #f7f3e8 !important;
+  letter-spacing: -.075em !important;
+  text-transform: uppercase;
+}
+
+.landing-copy h1::before {
+  content: "YOUR DIGITAL STYLIST / ";
+  display: block;
+  margin-bottom: 24px;
+  font: 800 10px/1 var(--font-body);
+  letter-spacing: .18em;
+}
+
+.landing-copy p {
+  max-width: 31rem !important;
+  color: #f7f3e8 !important;
+  font-size: clamp(16px, 1.4vw, 21px) !important;
+  font-weight: 600;
+}
+
+.fitzy-command {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: stretch;
+  width: 100%;
+  max-width: none !important;
+  padding: 18px !important;
+  background: #d8ff36 !important;
+  border: 2px solid #111 !important;
+  border-radius: 0 !important;
+  box-shadow: 10px 10px 0 #111 !important;
+}
+
+.fitzy-command::before {
+  content: "ASK FITZY";
+  color: #111;
+  font: 800 13px/1 var(--font-body);
+  letter-spacing: .16em;
+}
+
+.fitzy-command input {
+  min-height: 56px;
+  color: #111 !important;
+  background: #fffdf5 !important;
+  border: 2px solid #111 !important;
+  border-radius: 0 !important;
+}
+
+.fitzy-command button:not(.fitzy-ask) {
+  color: #111 !important;
+  background: transparent !important;
+  border: 1px solid #111 !important;
+}
+
+.fitzy-ask {
+  min-width: 82px;
+  color: #f7f3e8 !important;
+  background: #111 !important;
+  border: 2px solid #111 !important;
+  border-radius: 0 !important;
+  text-transform: uppercase;
+}
+
+.landing-features {
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
+  max-width: none !important;
+  gap: 0 !important;
+  border: 2px solid #111;
+}
+
+.landing-feature {
+  min-height: 170px;
+  justify-content: space-between;
+  padding: 24px !important;
+  background: #fffdf5 !important;
+  border: 0 !important;
+  border-right: 2px solid #111 !important;
+  border-radius: 0 !important;
+  transition: color 180ms ease, background 180ms ease, transform 180ms ease !important;
+}
+
+.landing-feature:last-child {
+  border-right: 0 !important;
+}
+
+.landing-feature span:first-child {
+  font-family: var(--font-heading);
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.04em;
+  text-transform: uppercase;
+}
+
+.landing-feature span:last-child {
+  font-size: 12px !important;
+}
+
+.landing-feature:hover {
+  background: #ff4f00 !important;
+  transform: translateY(-8px);
+}
+
+.landing-feature:hover span {
+  color: #111 !important;
+}
+
+@media (max-width: 900px) {
+  .landing-hero {
+    display: flex !important;
+    align-items: stretch !important;
+    padding-top: 86px !important;
+  }
+  .landing-hero::before {
+    content: "FIT WITHOUT\\A THE FICTION.";
+    font-size: clamp(58px, 16vw, 104px);
+  }
+  .landing-copy {
+    transform: none;
+    box-shadow: 8px 8px 0 #111;
+  }
+  .landing-features {
+    grid-template-columns: 1fr !important;
+  }
+  .landing-feature {
+    min-height: 120px;
+    border-right: 0 !important;
+    border-bottom: 2px solid #111 !important;
+  }
+  .landing-feature:last-child {
+    border-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .landing-nav {
+    min-height: 68px;
+  }
+  .landing-hero {
+    padding-inline: 16px !important;
+    padding-bottom: 72px !important;
+  }
+  .landing-hero::after {
+    left: 16px;
+    font-size: 8px;
+  }
+  .landing-copy {
+    padding: 28px 22px;
+  }
+  .fitzy-command > div:first-of-type {
+    flex-direction: column;
+  }
+  .fitzy-ask {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-signin,
+  .landing-feature {
+    transition: none !important;
+  }
+}
+
+/* ─── Authenticated app visual refresh ───────────────────────────────
+   Typography and accent vocabulary only; layouts remain page-owned. */
+.app-refresh {
+  --app-blue: #8fb7ff;
+  --app-blue-strong: #5e8edc;
+  --app-orange: #e8734a;
+  --app-orange-soft: #fbe2d8;
+  --app-green: #31b77a;
+  --app-green-soft: #dff5e9;
+  --app-yellow: #e9ac3f;
+  --app-yellow-soft: #fff0c9;
+  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+}
+
+.app-refresh .app-page-title,
+.app-refresh .app-section-title,
+.app-refresh .font-heading {
+  font-family: var(--font-manrope), "Manrope", system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-stretch: normal;
+  letter-spacing: -.025em !important;
+}
+
+.app-refresh .category-heading {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: #172033 !important;
+  font-size: 11px;
+  letter-spacing: .025em !important;
+}
+
+.app-refresh .category-outerwear {
+  background: #dfe9ff !important;
+  border-color: #8fb7ff !important;
+}
+
+.app-refresh .category-tops,
+.app-refresh .category-top {
+  background: var(--app-orange-soft) !important;
+  border-color: var(--app-orange) !important;
+}
+
+.app-refresh .category-bottoms,
+.app-refresh .category-bottom {
+  background: var(--app-green-soft) !important;
+  border-color: var(--app-green) !important;
+}
+
+.app-refresh .category-shoes,
+.app-refresh .category-shoe {
+  background: var(--app-yellow-soft) !important;
+  border-color: var(--app-yellow) !important;
+}
+
+.app-refresh .category-accent {
+  color: #172033 !important;
+  border-width: 1px !important;
+}
+
+.app-home .app-accent-blue {
+  background: var(--app-blue) !important;
+  border-color: var(--app-blue-strong) !important;
+}
+
+.app-home .app-accent-orange {
+  background: var(--app-orange-soft) !important;
+  border-color: var(--app-orange) !important;
+}
+
+.app-home .app-accent-green {
+  background: var(--app-green-soft) !important;
+  border-color: var(--app-green) !important;
+}
+
+.app-catalog .app-match-badge {
+  color: #4a240f !important;
+  background: var(--app-yellow-soft) !important;
+  border: 1px solid var(--app-yellow);
+}
+
+.app-saved .saved-outfits-title {
+  color: var(--app-orange) !important;
+}
+
+.app-saved .saved-items-title {
+  color: var(--app-blue-strong) !important;
+}
+
+/* ─── Calibrated landing layout ──────────────────────────────────────
+   Keep the original FitCheck composition while retaining the new,
+   higher-contrast campaign palette and tactile component styling. */
+.landing-redesign::before {
+  content: "REAL BODIES  /  REAL FIT  /  REAL OPINIONS";
+}
+
+.landing-hero {
+  min-height: calc(100vh - 78px);
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 28px !important;
+  padding: 70px 24px 96px !important;
+  background: radial-gradient(circle at 50% 35%, rgba(29, 50, 255, .08), transparent 34%);
+  background-size: auto;
+}
+
+.landing-hero::before {
+  content: none;
+}
+
+.landing-hero::after {
+  content: none;
+}
+
+.landing-silhouettes {
+  display: block;
+  filter: saturate(1.8) contrast(1.08);
+}
+
+.landing-silhouettes svg {
+  opacity: .68 !important;
+}
+
+/* The second illustration was intended to be trousers, but its narrow
+   silhouette reads ambiguously at this scale. */
+.landing-silhouettes svg:nth-child(2) {
+  display: block;
+}
+
+.landing-silhouettes svg:nth-child(1) path {
+  fill: #8b6fe8;
+  stroke: #5b43b5;
+}
+
+.landing-silhouettes svg:nth-child(3) path {
+  fill: #ff835c;
+  stroke: #d84e31;
+}
+
+.landing-silhouettes svg:nth-child(4) rect {
+  fill: #e9ac3f;
+  stroke: #a86e12;
+}
+
+.landing-silhouettes svg:nth-child(4) path {
+  stroke: #a86e12;
+}
+
+.landing-silhouettes svg:nth-child(4) circle {
+  fill: #a86e12;
+}
+
+.landing-silhouettes svg:nth-child(5) {
+  display: none;
+}
+
+.landing-feature span:first-child,
+.fitzy-command::before {
+  font-family: var(--font-manrope), "Manrope", system-ui, sans-serif;
+  font-weight: 700 !important;
+  letter-spacing: -.025em;
+}
+
+.landing-copy p,
+.landing-feature span:last-child,
+.fitzy-command input,
+.fitzy-command button {
+  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+}
+
+.landing-copy {
+  display: flex !important;
+  width: auto;
+  max-width: 610px !important;
+  align-items: center !important;
+  padding: 0;
+  text-align: center !important;
+  color: #111;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.landing-copy h1 {
+  font-family: var(--font-manrope), "Manrope", system-ui, sans-serif !important;
+  color: #111 !important;
+  font-size: clamp(54px, 6vw, 82px) !important;
+  font-weight: 700 !important;
+  font-stretch: normal;
+  letter-spacing: -.055em !important;
+}
+
+.landing-copy h1::before {
+  content: none;
+}
+
+.landing-copy h1::after {
+  content: "YOUR DIGITAL STYLIST";
+  display: block;
+  margin: 12px auto 0;
+  padding: 0;
+  color: #1d32ff;
+  background: transparent;
+  font-family: var(--font-manrope), "Manrope", system-ui, sans-serif;
+  font-size: clamp(15px, 1.3vw, 19px);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -.025em;
+}
+
+.landing-copy p {
+  max-width: 470px !important;
+  color: #52504a !important;
+  font-size: clamp(15px, 1.2vw, 19px) !important;
+}
+
+.fitzy-command {
+  display: flex !important;
+  width: 100%;
+  max-width: 560px !important;
+  padding: 20px !important;
+  background: #e8edff !important;
+  border: 1px solid rgba(17, 17, 17, .32) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 18px 45px rgba(29, 50, 255, .13), 0 3px 12px rgba(17, 17, 17, .08) !important;
+}
+
+.fitzy-command::before {
+  color: #1d32ff;
+}
+
+.landing-features {
+  display: grid !important;
+  width: 100%;
+  max-width: 840px !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  border: 0;
+}
+
+.landing-feature {
+  min-height: 148px;
+  padding: 22px !important;
+  border: 1px solid rgba(17, 17, 17, .24) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 24px rgba(17, 17, 17, .045);
+}
+
+.landing-feature:last-child {
+  border-right: 1px solid rgba(17, 17, 17, .24) !important;
+}
+
+.landing-feature:hover {
+  background: #ff7540 !important;
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px rgba(255, 79, 0, .16);
+}
+
+.fitzy-command input {
+  border: 1px solid rgba(17, 17, 17, .38) !important;
+  border-radius: 12px !important;
+}
+
+.fitzy-ask {
+  background: #1d32ff !important;
+  border-color: #1d32ff !important;
+  border-radius: 12px !important;
+}
+
+.fitzy-command button:not(.fitzy-ask) {
+  color: #303238 !important;
+  background: rgba(255, 255, 255, .62) !important;
+  border-color: rgba(17, 17, 17, .25) !important;
+}
+
+@media (max-width: 900px) {
+  .landing-hero {
+    display: flex !important;
+    padding-top: 82px !important;
+  }
+
+  .landing-copy {
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr !important;
+    max-width: 560px !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .landing-silhouettes svg {
+    opacity: .22 !important;
+  }
+}

@@ -156,22 +156,25 @@ function LandingPage({
       }
     : null;
 
+  const QUICK_PROMPTS = ["Dinner date outfit", "Pair a jacket", "Browse streetwear"];
+
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--bg)", color: "var(--text)" }}>
+    <div className="landing-redesign min-h-screen flex flex-col" style={{ background: "var(--bg)", color: "var(--text)" }}>
+
       {/* ── Nav ─────────────────────────────────────────────────────── */}
       <nav
-        className="sticky top-0 z-40 flex items-center justify-between px-6 py-4"
+        className="landing-nav sticky top-0 z-40 flex items-center justify-between px-6 py-4"
         style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}
       >
         <span
-          className="text-lg font-bold tracking-tight"
+          className="landing-logo text-lg font-bold tracking-tight"
           style={{ fontFamily: "var(--font-heading)", color: "var(--text)" }}
         >
           FitCheck
         </span>
         <button
           onClick={onGoChoice}
-          className="px-5 py-2 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors"
+          className="landing-signin px-5 py-2 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors"
           style={{ background: "var(--accent)", color: "var(--text)", border: "1.5px solid var(--accent)" }}
         >
           Sign In
@@ -179,25 +182,171 @@ function LandingPage({
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6 gap-10 py-16">
-        <div className="flex flex-col items-center gap-4 text-center max-w-md">
-          <h1
-            className="text-4xl font-bold tracking-tight leading-tight"
-            style={{ fontFamily: "var(--font-heading)", color: "var(--text)" }}
+      <main className="landing-hero relative flex-1 flex flex-col items-center px-6 pt-14 pb-10 gap-6 overflow-hidden">
+
+        {/* background clothing silhouettes — absolutely positioned within the hero */}
+        <div className="landing-silhouettes absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+
+          {/* T-shirt — top-left, large, accent blue */}
+          <svg
+            viewBox="0 0 120 110"
+            width="180" height="165"
+            style={{ position: "absolute", top: "4%", left: "3%", transform: "rotate(-8deg)", opacity: 0.32 }}
           >
-            Does it actually fit?
+            <path
+              d="M30 8 L10 28 L28 36 L24 100 L96 100 L92 36 L110 28 L90 8 Q80 0 72 6 Q65 18 60 18 Q55 18 48 6 Q40 0 30 8Z"
+              fill="#6FA0F5" stroke="#3b71c8" strokeWidth="2.5" strokeLinejoin="round"
+            />
+          </svg>
+
+          {/* Jeans/trousers — bottom-left, medium, coral */}
+          {/*
+            Fix: tighten the crotch gap. Previous path diverged the inner leg
+            lines from x=50 all the way to x=42/58 at the hem, with Q-curves
+            pulling outward to x=22/78 — making each leg look disconnected.
+            New path keeps the inner edges much closer together (x=46/54 at
+            crotch, Q-curves only reach x=44/56) so the two legs read as one
+            connected garment. Waistband is also given a slightly curved top.
+          */}
+          <svg
+            viewBox="0 0 100 130"
+            width="138" height="179"
+            style={{ position: "absolute", bottom: "6%", left: "7%", transform: "rotate(4deg)", opacity: 0.28 }}
+          >
+            <path
+              d="M14 8 Q50 3 86 8 L82 58 L66 126 L49 126 L51 70 L46 70 L40 126 L23 126 L18 58 Z"
+              fill="#31B77A" stroke="#14734F" strokeWidth="2.5" strokeLinejoin="round"
+            />
+            {/* fly seam — short center line from waist to crotch */}
+            <path d="M18 18 L82 18" fill="none" stroke="#14734F" strokeWidth="2" />
+            <path d="M31 22 Q35 34 45 37 M69 22 Q65 34 55 37" fill="none" stroke="#14734F" strokeWidth="1.6" />
+            <line x1="50" y1="8" x2="50" y2="70" stroke="#14734F" strokeWidth="1.8" />
+          </svg>
+
+          {/* A-line dress — top-right, large, coral */}
+          <svg
+            viewBox="0 0 110 140"
+            width="150" height="190"
+            style={{ position: "absolute", top: "2%", right: "5%", transform: "rotate(7deg)", opacity: 0.30 }}
+          >
+            {/* bodice */}
+            <path
+              d="M36 6 Q28 2 20 14 L8 28 L26 36 L28 56 L82 56 L84 36 L102 28 L90 14 Q82 2 74 6 Q66 18 55 18 Q44 18 36 6Z"
+              fill="#E8734A" stroke="#b84e26" strokeWidth="2.5" strokeLinejoin="round"
+            />
+            {/* skirt */}
+            <path
+              d="M28 56 L14 136 L96 136 L82 56 Z"
+              fill="#E8734A" stroke="#b84e26" strokeWidth="2.5" strokeLinejoin="round"
+            />
+          </svg>
+
+          {/* Structured tote bag — bottom-right, medium, accent blue */}
+          <svg
+            viewBox="0 0 100 110"
+            width="130" height="143"
+            style={{ position: "absolute", bottom: "12%", right: "6%", transform: "rotate(-5deg)", opacity: 0.35 }}
+          >
+            {/* bag body */}
+            <rect x="8" y="32" width="84" height="72" rx="6"
+              fill="#6FA0F5" stroke="#3b71c8" strokeWidth="2.5"
+            />
+            {/* handles */}
+            <path d="M28 32 Q28 8 50 8 Q72 8 72 32"
+              fill="none" stroke="#3b71c8" strokeWidth="5" strokeLinecap="round"
+            />
+            {/* pocket line */}
+            <rect x="22" y="52" width="56" height="32" rx="4"
+              fill="none" stroke="#3b71c8" strokeWidth="2"
+            />
+            {/* clasp */}
+            <circle cx="50" cy="52" r="4" fill="#3b71c8" />
+          </svg>
+
+          {/* Sneaker — center-right area, accent blue */}
+          {/*
+            Redrawn from scratch in a 200×90 viewBox so proportions stay
+            correct. The shoe faces right (toe at left, heel at right).
+
+            Key decisions that fix the "beret" problem:
+            - Upper never rises above y=22 (≈25% of height), keeping the
+              silhouette low-profile and unmistakably shoe-shaped.
+            - Toe box (left side) is rounded but stays below y=24.
+            - Collar opening is a shallow concave cut at the heel-top, not
+              a dome — this is what differentiates a shoe from a hat.
+            - Sole is a flat-bottomed band with a slight heel stack.
+            - Laces are near-horizontal cross-straps, not vertical lines.
+          */}
+          <svg
+            viewBox="0 0 200 90"
+            width="200" height="90"
+            style={{ display: "none" }}
+          >
+            {/* ── sole — flat bottom, slight heel lift on right ── */}
+            <path
+              d="M18 72 Q10 74 10 68 L10 64 Q12 58 22 58 L170 58 Q190 58 192 64 L192 70 Q192 76 182 76 L30 76 Q20 76 18 72 Z"
+              fill="#3A1723" stroke="#3A1723" strokeWidth="0" strokeLinejoin="round"
+            />
+            {/* ── upper — low-profile, toe rounds up gently, collar dips at heel ── */}
+            <path
+              d="M22 58
+                 Q14 56 12 48
+                 Q12 36 22 30
+                 Q30 24 42 22
+                 Q60 18 80 20
+                 L126 20
+                 Q150 18 166 26
+                 Q180 34 182 46
+                 Q184 54 178 58
+                 L22 58 Z"
+              fill="#F2E4D5" stroke="#6E293F" strokeWidth="2.2" strokeLinejoin="round"
+            />
+            {/* ── collar opening — concave arc at heel top ── */}
+            <path
+              d="M148 20 Q162 14 174 20 Q182 26 182 36 Q178 28 166 26 Q152 22 148 20 Z"
+              fill="#6E293F" stroke="none"
+            />
+            {/* ── toe cap — darker rounded front ── */}
+            <path
+              d="M22 58 Q12 56 12 48 Q12 36 22 30 Q30 24 42 22 Q52 20 58 22 Q44 26 36 34 Q28 42 26 52 Q24 56 22 58 Z"
+              fill="#B94A67" stroke="none"
+            />
+            {/* ── lace eyelets / cross-laces (horizontal, 3 pairs) ── */}
+            <path d="M76 28 Q88 26 100 28" fill="none" stroke="#6E293F" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M76 28 L76 42 M100 28 L100 42" fill="none" stroke="#6E293F" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M76 42 Q88 40 100 42" fill="none" stroke="#6E293F" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M76 42 L78 54 M100 42 L98 54" fill="none" stroke="#6E293F" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M78 54 Q88 52 98 54" fill="none" stroke="#6E293F" strokeWidth="2" strokeLinecap="round"/>
+            {/* ── midsole stripe ── */}
+            <rect x="10" y="58" width="182" height="6" rx="0"
+              fill="none" stroke="#6E293F" strokeWidth="1.5"
+            />
+          </svg>
+
+        </div>
+
+        {/* ── Wordmark + subtitle ──────────────────────────────────── */}
+        <div className="landing-copy flex flex-col items-center gap-3 text-center max-w-lg relative z-10">
+          <h1
+            className="font-bold tracking-tight leading-none"
+            style={{ fontFamily: "var(--font-heading)", color: "var(--text)", fontSize: "clamp(42px, 8vw, 56px)" }}
+          >
+            FitCheck
           </h1>
-          <p className="text-base leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            Upload an item, get an honest AI verdict on fit, style, and whether
-            it's actually worth buying. Built for real bodies, not mannequins.
+          <p className="text-base leading-relaxed max-w-sm" style={{ color: "var(--text-muted)" }}>
+            Ask Fitzy, and get real catalog picks matched to your actual measurements.
           </p>
         </div>
 
-        {/* ── Fitzy chat input ──────────────────────────────────────── */}
-        <div className="w-full max-w-md flex flex-col gap-2">
-          <p className="text-xs font-medium text-left" style={{ color: "var(--text-muted)" }}>
-            Ask Fitzy anything about your wardrobe
-          </p>
+        {/* ── Fitzy input card ─────────────────────────────────────── */}
+        <div
+          className="fitzy-command w-full max-w-md flex flex-col gap-3 relative z-10 rounded-2xl p-4"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            boxShadow: "0 4px 24px rgba(11,26,51,0.07), 0 1px 4px rgba(11,26,51,0.05)",
+          }}
+        >
           <div className="flex gap-2">
             <input
               type="text"
@@ -205,9 +354,9 @@ function LandingPage({
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") setGate("fitzy"); }}
               placeholder="e.g. What should I wear to a smart-casual dinner?"
-              className="flex-1 px-4 py-2.5 text-sm rounded-lg border focus:outline-none"
+              className="flex-1 px-4 py-2.5 text-sm rounded-xl border focus:outline-none"
               style={{
-                background: "var(--surface)",
+                background: "var(--bg)",
                 border: "1px solid var(--border)",
                 color: "var(--text)",
               }}
@@ -216,20 +365,47 @@ function LandingPage({
             />
             <button
               onClick={() => setGate("fitzy")}
-              className="px-4 py-2.5 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors"
+            className="fitzy-ask px-4 py-2.5 text-sm font-semibold rounded-xl focus:outline-none focus-visible:ring-2 transition-colors flex-shrink-0"
               style={{ background: "var(--accent)", color: "var(--text)", border: "1.5px solid var(--accent)" }}
             >
               Ask
             </button>
           </div>
+
+          {/* Quick-prompt chips */}
+          <div className="flex flex-wrap gap-2">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                onClick={() => { setChatInput(prompt); setGate("fitzy"); }}
+                className="px-3 py-1 text-xs font-medium rounded-full border transition-colors focus:outline-none focus-visible:ring-2"
+                style={{
+                  background: "var(--surface)",
+                  color: "var(--text-muted)",
+                  borderColor: "var(--border)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "var(--accent)";
+                  e.currentTarget.style.color = "var(--text)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border)";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* ── Feature row ───────────────────────────────────────────── */}
-        <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Browse catalogue card */}
+        {/* ── Feature cards ────────────────────────────────────────── */}
+        <div className="landing-features w-full max-w-2xl grid grid-cols-1 sm:grid-cols-3 gap-4 relative z-10">
+
+          {/* Browse catalogue */}
           <button
             onClick={() => setGate("catalogue")}
-            className="flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
+            className="landing-feature flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
             style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
             onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
             onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -242,38 +418,39 @@ function LandingPage({
             </span>
           </button>
 
-          {/* Avatar card */}
+          {/* Pick & Match */}
           <button
-            onClick={() => setGate("avatar")}
-            className="flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
+            onClick={() => setGate("catalogue")}
+            className="landing-feature flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
             style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
             onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
             onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
           >
             <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-              Your avatar
+              Pick &amp; Match
             </span>
             <span className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              A 3D model built around your exact measurements.
+              Build a full outfit, swipe through every category, and see it as a set.
             </span>
           </button>
 
-          {/* AI fit check card — also gates */}
+          {/* Honest AI review */}
           <button
             onClick={() => setGate("fitzy")}
-            className="flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
+            className="landing-feature flex flex-col gap-2 text-left p-5 rounded-xl border focus:outline-none focus-visible:ring-2 transition-colors"
             style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
             onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
             onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
           >
             <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-              AI fit check
+              Honest AI review
             </span>
             <span className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Upload any item and get an honest verdict in seconds.
+              Get a real, detailed opinion on fit and style — no scores, no fluff.
             </span>
           </button>
         </div>
+
       </main>
 
       {/* ── Gate modals ─────────────────────────────────────────────── */}

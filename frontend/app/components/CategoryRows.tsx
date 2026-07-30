@@ -158,7 +158,7 @@ export function CategoryRow({
   return (
     <div>
       <h2
-        className="text-xs font-semibold uppercase tracking-wider mb-2"
+        className={`app-section-title category-heading category-${label.toLowerCase()} text-xs font-semibold uppercase tracking-wider mb-2`}
         style={{ color: "var(--text-muted)" }}
       >
         {label}
