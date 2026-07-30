@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import catalog, { CatalogItem } from "../../data/catalog";
@@ -9,6 +10,7 @@ import OutfitFitPanel, { type OutfitFitState } from "../../components/OutfitFitP
 import { getStoredMeasurements } from "../../components/FitPanel";
 import { createClient } from "../../lib/supabase";
 import { CategoryRow } from "../../components/CategoryRows";
+import { useSavedItems } from "../../lib/useSavedItems";
 
 type GenderFilter = "all" | "men" | "women";
 
@@ -18,6 +20,9 @@ export default function PickMatchPage() {
   const router = useRouter();
   const { outfit, toggleItem } = useOutfit();
   const supabase = createClient();
+
+  const { savedRowIds, loadSavedItems, toggleSave } = useSavedItems();
+  const [userId, setUserId] = useState<string | null>(null);
 
   const [gender, setGender] = useState<GenderFilter>("all");
 
@@ -52,6 +57,8 @@ export default function PickMatchPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/"); return; }
 
+      setUserId(user.id);
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("gender")
@@ -62,6 +69,7 @@ export default function PickMatchPage() {
         setGender(profile.gender);
       }
 
+      await loadSavedItems(user.id);
       setProfileReady(true);
     }
     init();
@@ -261,37 +269,16 @@ export default function PickMatchPage() {
             </div>
           ) : (
             <>
-              {outerwearItems.length > 0 && <CategoryRow label="Outerwear" items={outerwearItems} />}
-              {topItems.length > 0 && <CategoryRow label="Tops" items={topItems} />}
-              {bottomItems.length > 0 && <CategoryRow label="Bottoms" items={bottomItems} />}
-              {shoeItems.length > 0 && <CategoryRow label="Shoes" items={shoeItems} />}
+              {outerwearItems.length > 0 && <CategoryRow label="Outerwear" items={outerwearItems} savedRowIds={savedRowIds} onToggleSave={(id) => userId && toggleSave(userId, id)} />}
+              {topItems.length > 0 && <CategoryRow label="Tops" items={topItems} savedRowIds={savedRowIds} onToggleSave={(id) => userId && toggleSave(userId, id)} />}
+              {bottomItems.length > 0 && <CategoryRow label="Bottoms" items={bottomItems} savedRowIds={savedRowIds} onToggleSave={(id) => userId && toggleSave(userId, id)} />}
+              {shoeItems.length > 0 && <CategoryRow label="Shoes" items={shoeItems} savedRowIds={savedRowIds} onToggleSave={(id) => userId && toggleSave(userId, id)} />}
             </>
           )}
         </div>
 
-        {/* ── Right: avatar placeholder ── */}
-        <div
-          className="sticky top-[57px] self-start mx-4 my-6 rounded-2xl flex flex-col items-center justify-center gap-2 max-sm:hidden"
-          style={{
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            minHeight: "calc(100vh - 57px - 48px)",
-          }}
-        >
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
-            stroke="var(--border)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-            aria-hidden="true">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <circle cx="12" cy="9" r="2.5" />
-            <path d="M7 20c0-2.76 2.24-5 5-5s5 2.24 5 5" />
-          </svg>
-          <p className="text-xs text-center px-6" style={{ color: "var(--text-muted)" }}>
-            Avatar preview
-          </p>
-          <p className="text-[10px] text-center px-6" style={{ color: "var(--border)" }}>
-            coming soon
-          </p>
-        </div>
+        {/* ── Right: flat-lay outfit panel ── */}
+        <OutfitFlatLay outfit={outfit} onRemove={toggleItem} />
       </div>
 
       {/* ── Action bar — shown once ≥1 item is selected ── */}
@@ -395,5 +382,168 @@ export default function PickMatchPage() {
       />
 
     </main>
+  );
+}
+
+// ─── OutfitFlatLay ────────────────────────────────────────────────────────────
+// Right-hand sticky panel showing the currently-selected outfit as a vertical
+// flat-lay image stack, one slot per category in wear order.
+// Empty state shows the original avatar-preview placeholder.
+
+type FlatLayProps = {
+  outfit: import("../../lib/outfit-context").OutfitState;
+  onRemove: (item: CatalogItem) => void;
+};
+
+// Image height per category — outerwear tallest, shoes shortest.
+const SLOT_HEIGHTS: Record<string, number> = {
+  outerwear: 120,
+  top:       110,
+  bottom:    110,
+  shoe:       80,
+};
+
+// Slot labels for accessibility / aria
+const SLOT_LABELS: Record<string, string> = {
+  outerwear: "Outerwear",
+  top:       "Top",
+  bottom:    "Bottom",
+  shoe:      "Shoes",
+};
+
+function OutfitFlatLay({ outfit, onRemove }: FlatLayProps) {
+  // Fixed display order — outerwear at top, shoes at bottom.
+  const SLOTS = ["outerwear", "top", "bottom", "shoe"] as const;
+  const filled = SLOTS.map((s) => outfit[s]).filter((i): i is CatalogItem => i !== null);
+
+  const totalPrice = filled.reduce((sum, i) => {
+    if (i.price == null) return sum;
+    return sum + i.price;
+  }, 0);
+
+  // Work out which currency symbol to show (use first item that has one).
+  const currencySymbol = (() => {
+    for (const item of filled) {
+      if (!item.currency) continue;
+      return item.currency === "USD" ? "$" : item.currency + " ";
+    }
+    return "$";
+  })();
+
+  const hasPrices = filled.some((i) => i.price != null);
+
+  return (
+    <div
+      className="sticky top-[57px] self-start mx-4 my-6 rounded-2xl max-sm:hidden"
+      style={{
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+        minHeight: "calc(100vh - 57px - 48px)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* ── Empty state ── */}
+      {filled.length === 0 && (
+        <div
+          className="flex-1 flex flex-col items-center justify-center gap-2"
+          aria-label="No items selected yet"
+        >
+          <svg
+            width="36" height="36" viewBox="0 0 24 24" fill="none"
+            stroke="var(--border)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="12" cy="9" r="2.5" />
+            <path d="M7 20c0-2.76 2.24-5 5-5s5 2.24 5 5" />
+          </svg>
+          <p className="text-xs text-center px-6" style={{ color: "var(--text-muted)" }}>
+            Select items to build your outfit
+          </p>
+        </div>
+      )}
+
+      {/* ── Filled state — flat-lay stack ── */}
+      {filled.length > 0 && (
+        <div className="flex-1 flex flex-col justify-between">
+
+          {/* Stack of item images */}
+          <div className="flex flex-col gap-3 p-4">
+            {SLOTS.map((slot) => {
+              const item = outfit[slot];
+              if (!item) return null;
+              const h = SLOT_HEIGHTS[slot];
+              return (
+                <div key={slot} className="flex flex-col gap-1">
+                  {/* Category label */}
+                  <p
+                    className="text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {SLOT_LABELS[slot]}
+                  </p>
+
+                  {/* Image + remove button */}
+                  <div className="relative rounded-xl overflow-hidden" style={{ height: h, background: "var(--bg)", border: "1px solid var(--border)" }}>
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      fill
+                      sizes="(max-width: 1280px) 25vw, 300px"
+                      className="object-contain"
+                      unoptimized
+                    />
+                    {/* Deselect (×) button — top-right corner */}
+                    <button
+                      aria-label={`Remove ${item.name}`}
+                      onClick={() => onRemove(item)}
+                      className="absolute top-1.5 right-1.5 flex items-center justify-center rounded-full transition-[transform,opacity] duration-150 ease-out active:scale-90 focus:outline-none focus-visible:ring-2"
+                      style={{
+                        width: 22,
+                        height: 22,
+                        background: "rgba(255,255,255,0.88)",
+                        backdropFilter: "blur(4px)",
+                        border: "none",
+                        cursor: "pointer",
+                        zIndex: 1,
+                      }}
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Item name */}
+                  <p
+                    className="text-[11px] font-medium leading-snug line-clamp-1"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {item.name}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Running total — pinned to bottom of panel */}
+          {hasPrices && (
+            <div
+              className="mx-4 mb-4 mt-1 rounded-xl px-3 py-2.5 flex items-center justify-between"
+              style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
+            >
+              <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                Total
+              </p>
+              <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                {currencySymbol}{totalPrice.toFixed(2)}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

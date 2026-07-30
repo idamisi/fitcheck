@@ -338,6 +338,17 @@ export default function FitPanel({
               {fit.status === "loading" && renderAiSkeleton()}
               {fit.status === "done" && (
                 <>
+                  {fit.data.recommendedSize && (
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--accent)" }}>Recommended Size</p>
+                      <span
+                        className="text-xs font-bold px-2 py-0.5 rounded-md"
+                        style={{ background: "var(--accent)", color: "var(--accent-text)" }}
+                      >
+                        {fit.data.recommendedSize}
+                      </span>
+                    </div>
+                  )}
                   {fit.data.fitDescription && (
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>Fit Details</p>
@@ -361,6 +372,17 @@ export default function FitPanel({
               )}
               {currentDrill.fitStatus === "done" && currentDrill.data && (
                 <>
+                  {currentDrill.data.recommendedSize && (
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--accent)" }}>Recommended Size</p>
+                      <span
+                        className="text-xs font-bold px-2 py-0.5 rounded-md"
+                        style={{ background: "var(--accent)", color: "var(--accent-text)" }}
+                      >
+                        {currentDrill.data.recommendedSize}
+                      </span>
+                    </div>
+                  )}
                   {currentDrill.data.fitDescription && (
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>Fit Details</p>

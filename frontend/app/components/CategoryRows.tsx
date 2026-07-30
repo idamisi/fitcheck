@@ -4,21 +4,72 @@ import React, { useRef, useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import type { CatalogItem } from "../data/catalog";
 import { useOutfit } from "../lib/outfit-context";
+import type { SavedRowMap } from "../lib/useSavedItems";
+
+// ─── HeartButton ──────────────────────────────────────────────────────────────
+// Overlay heart icon in the top-right corner of a card image.
+// Clicking it saves/unsaves the item WITHOUT triggering the card's onSelect.
+
+function HeartButton({
+  saved,
+  onToggle,
+}: {
+  saved: boolean;
+  onToggle: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <button
+      aria-label={saved ? "Unsave item" : "Save item"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle(e);
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+      className="absolute top-2 right-2 flex items-center justify-center rounded-full transition-[transform,opacity] duration-150 ease-out active:scale-90 focus:outline-none focus-visible:ring-2"
+      style={{
+        width: 28,
+        height: 28,
+        background: "rgba(255,255,255,0.82)",
+        backdropFilter: "blur(4px)",
+        border: "none",
+        cursor: "pointer",
+        zIndex: 1,
+      }}
+    >
+      {saved ? (
+        // Filled heart
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--danger, #e11d48)" stroke="none" aria-hidden="true">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </svg>
+      ) : (
+        // Outlined heart
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted, #57606a)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </svg>
+      )}
+    </button>
+  );
+}
 
 // ─── PickCard ─────────────────────────────────────────────────────────────────
 // Tappable card: highlights with an accent-blue border when selected.
 // If `matched` is true, shows a small "Match" badge in the top-left corner.
+// If `onToggleSave` is provided, renders a heart button in the top-right corner.
 
 export function PickCard({
   item,
   selected,
   onSelect,
   matched,
+  savedRowId,
+  onToggleSave,
 }: {
   item: CatalogItem;
   selected: boolean;
   onSelect: () => void;
   matched?: boolean;
+  savedRowId?: string;
+  onToggleSave?: (itemId: string) => void;
 }) {
   return (
     <div
@@ -56,6 +107,13 @@ export function PickCard({
           >
             Match
           </div>
+        )}
+        {/* Heart / save toggle */}
+        {onToggleSave && (
+          <HeartButton
+            saved={!!savedRowId}
+            onToggle={() => onToggleSave(item.id)}
+          />
         )}
       </div>
       <div className="flex flex-col gap-1 p-3">
@@ -107,10 +165,14 @@ export function CategoryRow({
   label,
   items,
   matchIds,
+  savedRowIds,
+  onToggleSave,
 }: {
   label: string;
   items: CatalogItem[];
   matchIds?: ReadonlySet<string>;
+  savedRowIds?: SavedRowMap;
+  onToggleSave?: (itemId: string) => void;
 }) {
   const { toggleItem, itemInOutfit } = useOutfit();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -191,6 +253,8 @@ export function CategoryRow({
                 selected={itemInOutfit(item.id)}
                 onSelect={() => toggleItem(item)}
                 matched={matchIds ? matchIds.has(item.id) : false}
+                savedRowId={savedRowIds?.get(item.id)}
+                onToggleSave={onToggleSave}
               />
             </div>
           ))}
