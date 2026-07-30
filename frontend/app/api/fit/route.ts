@@ -49,6 +49,7 @@ export type FitInput = {
 
 export type FitOutput = {
   fitDescription: string | null;
+  recommendedSize: string | null;
   recommendations: Array<{
     id: string;
     name: string;
@@ -56,29 +57,136 @@ export type FitOutput = {
   }>;
 };
 
-// ─── Size chart resolution ────────────────────────────────────────────────────
-// Placeholder entries — replace/extend when real catalog JSON is ready.
-// Items in the catalog can also carry measurements directly (no sizeChartRef needed).
+// ─── Size chart families ──────────────────────────────────────────────────────
+// Each family maps a size label to the garment's body-measurement equivalents
+// (i.e. the body measurements that label is designed to fit, in centimetres).
+// Category-relevant fields only — tops/outerwear use chest + shoulderWidth,
+// bottoms use waist + hip + inseam, shoes use footSize (UK).
 
-const SIZE_CHARTS: Record<string, GarmentMeasurements> = {
-  "size-chart-top-xs":    { shoulderWidth: 38, chest: 88,  waist: 74,  length: 68 },
-  "size-chart-top-s":     { shoulderWidth: 40, chest: 94,  waist: 80,  length: 70 },
-  "size-chart-top-m":     { shoulderWidth: 44, chest: 102, waist: 88,  length: 72 },
-  "size-chart-top-l":     { shoulderWidth: 47, chest: 110, waist: 96,  length: 74 },
-  "size-chart-top-xl":    { shoulderWidth: 50, chest: 118, waist: 104, length: 76 },
-  "size-chart-bottom-xs": { waist: 68, hip: 90,  inseam: 74 },
-  "size-chart-bottom-s":  { waist: 76, hip: 98,  inseam: 76 },
-  "size-chart-bottom-m":  { waist: 84, hip: 106, inseam: 78 },
-  "size-chart-bottom-l":  { waist: 92, hip: 114, inseam: 79 },
-  "size-chart-bottom-xl": { waist: 100, hip: 122, inseam: 80 },
+type SizeEntry = {
+  label: string;           // "S" | "M" | "L" | "XL"
+  measurements: GarmentMeasurements & { footSize?: number };
 };
+
+const SIZE_CHART_FAMILIES: Record<string, SizeEntry[]> = {
+  // ── Men's tops / outerwear ──────────────────────────────────────────────────
+  mens_tops_regular: [
+    { label: "S",  measurements: { shoulderWidth: 43, chest:  94 } },
+    { label: "M",  measurements: { shoulderWidth: 45, chest: 100 } },
+    { label: "L",  measurements: { shoulderWidth: 47, chest: 106 } },
+    { label: "XL", measurements: { shoulderWidth: 50, chest: 114 } },
+  ],
+  hm_mens_tops_regular: [
+    { label: "S",  measurements: { shoulderWidth: 43, chest:  94 } },
+    { label: "M",  measurements: { shoulderWidth: 45, chest: 100 } },
+    { label: "L",  measurements: { shoulderWidth: 47, chest: 106 } },
+    { label: "XL", measurements: { shoulderWidth: 50, chest: 114 } },
+  ],
+  // ── Women's tops / outerwear ────────────────────────────────────────────────
+  womens_tops_regular: [
+    { label: "S",  measurements: { shoulderWidth: 38, chest:  86 } },
+    { label: "M",  measurements: { shoulderWidth: 40, chest:  94 } },
+    { label: "L",  measurements: { shoulderWidth: 42, chest: 102 } },
+    { label: "XL", measurements: { shoulderWidth: 44, chest: 110 } },
+  ],
+  // ── Men's bottoms ───────────────────────────────────────────────────────────
+  mens_bottoms_regular: [
+    { label: "S",  measurements: { waist:  76, hip:  96, inseam: 79 } },
+    { label: "M",  measurements: { waist:  84, hip: 104, inseam: 80 } },
+    { label: "L",  measurements: { waist:  92, hip: 112, inseam: 81 } },
+    { label: "XL", measurements: { waist: 100, hip: 120, inseam: 81 } },
+  ],
+  hm_mens_bottoms_regular: [
+    { label: "S",  measurements: { waist:  76, hip:  96, inseam: 79 } },
+    { label: "M",  measurements: { waist:  84, hip: 104, inseam: 80 } },
+    { label: "L",  measurements: { waist:  92, hip: 112, inseam: 81 } },
+    { label: "XL", measurements: { waist: 100, hip: 120, inseam: 81 } },
+  ],
+  // ── Women's bottoms ─────────────────────────────────────────────────────────
+  womens_bottoms_regular: [
+    { label: "S",  measurements: { waist:  68, hip:  92, inseam: 78 } },
+    { label: "M",  measurements: { waist:  76, hip: 100, inseam: 79 } },
+    { label: "L",  measurements: { waist:  84, hip: 108, inseam: 80 } },
+    { label: "XL", measurements: { waist:  92, hip: 116, inseam: 80 } },
+  ],
+};
+
+// ─── Size recommendation ──────────────────────────────────────────────────────
+// Returns the closest available size label, or null if no chart/sizes data
+// is available. "Available" means the size must appear in item.sizes (when
+// present); otherwise all entries in the family are considered available.
+
+function parseSizesField(sizes: string | undefined): Set<string> | null {
+  if (!sizes) return null;
+  // Normalise to upper-case and extract size tokens like S, M, L, XL, XXL …
+  const tokens = sizes.toUpperCase().match(/\bX{0,3}[SML]\b|\bX{1,3}L\b/g);
+  return tokens ? new Set(tokens) : null;
+}
+
+function recommendSize(
+  item: CatalogItem,
+  userM: FitInput["userMeasurements"],
+): string | null {
+  const chart = item.sizeChartRef ? SIZE_CHART_FAMILIES[item.sizeChartRef] : null;
+  if (!chart || chart.length === 0) return null;
+
+  // Determine which size labels are actually offered by this specific item.
+  // If item.sizes is absent, treat all chart entries as available.
+  const availableSet = parseSizesField(item.sizes);
+  const available = availableSet
+    ? chart.filter((e) => availableSet.has(e.label.toUpperCase()))
+    : chart;
+
+  if (available.length === 0) return null;
+
+  const cat = item.category.toLowerCase();
+
+  // Select which measurement keys to compare based on category.
+  type MKey = "chest" | "shoulderWidth" | "waist" | "hip" | "inseam";
+  const keys: MKey[] =
+    cat === "top" || cat === "outerwear"
+      ? ["chest", "shoulderWidth"]
+      : cat === "bottom"
+        ? ["waist", "hip", "inseam"]
+        : []; // shoe — no body measurement comparison
+
+  if (keys.length === 0) return null;
+
+  // Score each available entry by sum of squared differences on relevant keys.
+  let best: SizeEntry | null = null;
+  let bestScore = Infinity;
+
+  for (const entry of available) {
+    let score = 0;
+    let counted = 0;
+    for (const k of keys) {
+      const garmentVal = entry.measurements[k];
+      const userVal = userM[k as keyof typeof userM] as number | undefined;
+      if (garmentVal == null || !userVal) continue;
+      const diff = garmentVal - userVal;
+      score += diff * diff;
+      counted++;
+    }
+    // Skip entries where we had no usable data
+    if (counted === 0) continue;
+    if (score < bestScore) {
+      bestScore = score;
+      best = entry;
+    }
+  }
+
+  return best ? best.label : null;
+}
 
 function resolveItemMeasurements(item: CatalogItem): GarmentMeasurements {
   if (item.measurements && Object.keys(item.measurements).length > 0) {
     return item.measurements;
   }
-  if (item.sizeChartRef && SIZE_CHARTS[item.sizeChartRef]) {
-    return SIZE_CHARTS[item.sizeChartRef];
+  // Fall back to the medium-size entry from the family as a representative garment measurement
+  const family = item.sizeChartRef ? SIZE_CHART_FAMILIES[item.sizeChartRef] : null;
+  if (family) {
+    const mid = family[Math.floor(family.length / 2)];
+    if (mid) return mid.measurements;
   }
   return {};
 }
@@ -233,7 +341,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let parsed: FitOutput;
+  let parsed: Omit<FitOutput, "recommendedSize">;
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
@@ -244,5 +352,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json(parsed);
+  // Deterministic size recommendation — computed server-side, not by the AI
+  const recommendedSize = recommendSize(selectedItem, userMeasurements);
+
+  const response: FitOutput = { ...parsed, recommendedSize };
+  return NextResponse.json(response);
 }

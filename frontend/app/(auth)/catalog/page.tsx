@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import catalog, { CatalogItem } from "../../data/catalog";
@@ -13,6 +14,7 @@ import { getStoredMeasurements } from "../../components/FitPanel";
 import type { Measurements } from "../../components/MeasurementForm";
 import FitzyChat from "../../components/FitzyChat";
 import type { FitzyChatMessage } from "../../components/FitzyChat";
+import { useSavedItems } from "../../lib/useSavedItems";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -70,6 +72,9 @@ export default function CatalogPage() {
   const supabase = createClient();
   const { outfit, toggleItem, clearOutfit } = useOutfit();
 
+  const { savedRowIds, loadSavedItems, toggleSave } = useSavedItems();
+  const [userId, setUserId] = useState<string | null>(null);
+
   const [gender, setGender] = useState<GenderFilter>("all");
   const [style, setStyle] = useState<StyleFilter>("all");
   const [measurements, setMeasurements] = useState<Measurements | null>(null);
@@ -104,6 +109,8 @@ export default function CatalogPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/"); return; }
 
+      setUserId(user.id);
+
       // Seed gender filter from the user's profile preference
       const { data: profile } = await supabase
         .from("profiles")
@@ -117,6 +124,9 @@ export default function CatalogPage() {
 
       // Load measurements for the outfit review panel
       setMeasurements(getStoredMeasurements());
+
+      // Load saved items so hearts are filled from the start
+      await loadSavedItems(user.id);
 
       // Mark profile as ready — rows must not render until this point so the
       // user never sees an unfiltered flash before the gender preference lands.
@@ -423,6 +433,8 @@ export default function CatalogPage() {
                     label="Outerwear"
                     items={outerwearItems}
                     matchIds={fitzyItemIds ? matchIds : undefined}
+                    savedRowIds={savedRowIds}
+                    onToggleSave={(id) => userId && toggleSave(userId, id)}
                   />
                 )}
                 {topItems.length > 0 && (
@@ -430,6 +442,8 @@ export default function CatalogPage() {
                     label="Tops"
                     items={topItems}
                     matchIds={fitzyItemIds ? matchIds : undefined}
+                    savedRowIds={savedRowIds}
+                    onToggleSave={(id) => userId && toggleSave(userId, id)}
                   />
                 )}
                 {bottomItems.length > 0 && (
@@ -437,6 +451,8 @@ export default function CatalogPage() {
                     label="Bottoms"
                     items={bottomItems}
                     matchIds={fitzyItemIds ? matchIds : undefined}
+                    savedRowIds={savedRowIds}
+                    onToggleSave={(id) => userId && toggleSave(userId, id)}
                   />
                 )}
                 {shoeItems.length > 0 && (
@@ -444,6 +460,8 @@ export default function CatalogPage() {
                     label="Shoes"
                     items={shoeItems}
                     matchIds={fitzyItemIds ? matchIds : undefined}
+                    savedRowIds={savedRowIds}
+                    onToggleSave={(id) => userId && toggleSave(userId, id)}
                   />
                 )}
               </>
@@ -451,29 +469,8 @@ export default function CatalogPage() {
           </div>
         </div>
 
-        {/* ── Right: avatar placeholder (same as Pick & Match) ── */}
-        <div
-          className="sticky top-[57px] self-start mx-4 my-6 rounded-2xl flex flex-col items-center justify-center gap-2 max-sm:hidden"
-          style={{
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            minHeight: "calc(100vh - 57px - 48px)",
-          }}
-        >
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
-            stroke="var(--border)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-            aria-hidden="true">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <circle cx="12" cy="9" r="2.5" />
-            <path d="M7 20c0-2.76 2.24-5 5-5s5 2.24 5 5" />
-          </svg>
-          <p className="text-xs text-center px-6" style={{ color: "var(--text-muted)" }}>
-            Avatar preview
-          </p>
-          <p className="text-[10px] text-center px-6" style={{ color: "var(--border)" }}>
-            coming soon
-          </p>
-        </div>
+        {/* ── Right: flat-lay outfit panel ── */}
+        <OutfitFlatLay outfit={outfit} onRemove={toggleItem} />
       </div>
 
       {/* ── Action bar — shown once ≥1 item is selected (same as Pick & Match) ── */}
@@ -663,5 +660,115 @@ export default function CatalogPage() {
       </button>
 
     </main>
+  );
+}
+
+// ─── OutfitFlatLay ────────────────────────────────────────────────────────────
+// Right-hand sticky panel — vertical flat-lay image stack of the current outfit.
+// Empty state shows the original avatar-preview placeholder.
+
+type FlatLayProps = {
+  outfit: import("../../lib/outfit-context").OutfitState;
+  onRemove: (item: CatalogItem) => void;
+};
+
+const SLOT_HEIGHTS: Record<string, number> = {
+  outerwear: 120,
+  top:       110,
+  bottom:    110,
+  shoe:       80,
+};
+
+const SLOT_LABELS: Record<string, string> = {
+  outerwear: "Outerwear",
+  top:       "Top",
+  bottom:    "Bottom",
+  shoe:      "Shoes",
+};
+
+function OutfitFlatLay({ outfit, onRemove }: FlatLayProps) {
+  const SLOTS = ["outerwear", "top", "bottom", "shoe"] as const;
+  const filled = SLOTS.map((s) => outfit[s]).filter((i): i is CatalogItem => i !== null);
+
+  const totalPrice = filled.reduce((sum, i) => (i.price == null ? sum : sum + i.price), 0);
+
+  const currencySymbol = (() => {
+    for (const item of filled) {
+      if (!item.currency) continue;
+      return item.currency === "USD" ? "$" : item.currency + " ";
+    }
+    return "$";
+  })();
+
+  const hasPrices = filled.some((i) => i.price != null);
+
+  return (
+    <div
+      className="sticky top-[57px] self-start mx-4 my-6 rounded-2xl max-sm:hidden"
+      style={{
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+        minHeight: "calc(100vh - 57px - 48px)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {filled.length === 0 && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+            stroke="var(--border)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+            aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="12" cy="9" r="2.5" />
+            <path d="M7 20c0-2.76 2.24-5 5-5s5 2.24 5 5" />
+          </svg>
+          <p className="text-xs text-center px-6" style={{ color: "var(--text-muted)" }}>
+            Select items to build your outfit
+          </p>
+        </div>
+      )}
+
+      {filled.length > 0 && (
+        <div className="flex-1 flex flex-col justify-between">
+          <div className="flex flex-col gap-3 p-4">
+            {SLOTS.map((slot) => {
+              const item = outfit[slot];
+              if (!item) return null;
+              const h = SLOT_HEIGHTS[slot];
+              return (
+                <div key={slot} className="flex flex-col gap-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                    {SLOT_LABELS[slot]}
+                  </p>
+                  <div className="relative rounded-xl overflow-hidden" style={{ height: h, background: "var(--bg)", border: "1px solid var(--border)" }}>
+                    <Image src={item.imageUrl} alt={item.name} fill sizes="(max-width: 1280px) 25vw, 300px" className="object-contain" unoptimized />
+                    <button
+                      aria-label={`Remove ${item.name}`}
+                      onClick={() => onRemove(item)}
+                      className="absolute top-1.5 right-1.5 flex items-center justify-center rounded-full transition-[transform,opacity] duration-150 ease-out active:scale-90 focus:outline-none focus-visible:ring-2"
+                      style={{ width: 22, height: 22, background: "rgba(255,255,255,0.88)", backdropFilter: "blur(4px)", border: "none", cursor: "pointer", zIndex: 1 }}
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p className="text-[11px] font-medium leading-snug line-clamp-1" style={{ color: "var(--text)" }}>
+                    {item.name}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {hasPrices && (
+            <div className="mx-4 mb-4 mt-1 rounded-xl px-3 py-2.5 flex items-center justify-between" style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}>
+              <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Total</p>
+              <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{currencySymbol}{totalPrice.toFixed(2)}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

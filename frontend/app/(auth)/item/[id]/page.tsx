@@ -504,6 +504,22 @@ export default function ItemDetailPage() {
               </div>
             )}
 
+            {fit.status === "done" && fit.data.recommendedSize && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--accent)", margin: 0 }}>
+                  Recommended Size
+                </p>
+                <span style={{
+                  fontSize: "0.75rem", fontWeight: 700,
+                  padding: "0.125rem 0.5rem",
+                  borderRadius: "6px",
+                  background: "var(--accent)", color: "var(--accent-text)",
+                }}>
+                  {fit.data.recommendedSize}
+                </span>
+              </div>
+            )}
+
             {fit.status === "done" && fit.data.fitDescription && (
               <div>
                 <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--accent)", marginBottom: "0.5rem" }}>
