@@ -11,7 +11,6 @@ import type { FitzyChatMessage } from "../../../components/FitzyChat";
 import type { Measurements } from "../../../components/MeasurementForm";
 import FitzyChat from "../../../components/FitzyChat";
 import AccountDropdown from "../../../components/AccountDropdown";
-import OutfitAvatarWidget from "../../../components/OutfitAvatarWidget";
 import { useOutfit } from "../../../lib/outfit-context";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -53,7 +52,6 @@ export default function ItemDetailPage() {
 
   // ── auth guard ────────────────────────────────────────────────────────────
   const [ready, setReady] = useState(false);
-  const [measurements, setMeasurements] = useState<Measurements | null>(null);
   const [savedRowId, setSavedRowId] = useState<string | null>(null);
 
   // ── gender filter (seeded from profile) — same pattern as /catalog and
@@ -75,8 +73,6 @@ export default function ItemDetailPage() {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/"); return; }
-
-      setMeasurements(getStoredMeasurements());
 
       // Seed gender filter from the user's profile preference (same query
       // used on /catalog and /pick-match) so the Fitzy widget only ever
@@ -637,8 +633,6 @@ export default function ItemDetailPage() {
         )}
       </button>
 
-      {/* ── Outfit avatar widget ────────────────────────────────────────────── */}
-      {measurements && <OutfitAvatarWidget measurements={measurements} />}
     </div>
   );
 }

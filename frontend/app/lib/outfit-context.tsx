@@ -9,11 +9,17 @@ import type { CatalogItem } from "../data/catalog";
 /** One slot per wearable layer. null = nothing selected for that layer. */
 export type OutfitSlot = "top" | "bottom" | "outerwear" | "shoe";
 
+export type OutfitItem = CatalogItem & {
+  isAnchor: boolean;
+  /** Present for AI-classified wardrobe pieces; catalog pieces do not need it. */
+  description?: string;
+};
+
 export type OutfitState = {
-  top:       CatalogItem | null;
-  bottom:    CatalogItem | null;
-  outerwear: CatalogItem | null;
-  shoe:      CatalogItem | null;
+  top:       OutfitItem | null;
+  bottom:    OutfitItem | null;
+  outerwear: OutfitItem | null;
+  shoe:      OutfitItem | null;
 };
 
 type OutfitContextValue = {
@@ -22,6 +28,8 @@ type OutfitContextValue = {
   toggleItem:  (item: CatalogItem) => void;
   /** Replace the whole outfit in one shot, slotting each item by its category. */
   setOutfitItems: (items: CatalogItem[]) => void;
+  /** Add recommendations only to slots that are still empty. */
+  fillEmptySlots: (items: CatalogItem[]) => void;
   clearOutfit: () => void;
   itemInOutfit: (itemId: string) => boolean;
 };
@@ -37,21 +45,45 @@ export function OutfitProvider({ children }: { children: React.ReactNode }) {
 
   const toggleItem = useCallback((item: CatalogItem) => {
     const slot = item.category as OutfitSlot;
-    setOutfit((prev) => ({
-      ...prev,
-      [slot]: prev[slot]?.id === item.id ? null : item,
-    }));
+    setOutfit((prev) => {
+      const wasEmptyOutfit = !prev.top && !prev.bottom && !prev.outerwear && !prev.shoe;
+      const isSameItem = prev[slot]?.id === item.id;
+
+      if (isSameItem) {
+        return { ...prev, [slot]: null };
+      }
+
+      // Only the very first manual selection becomes an anchor. Replacing an
+      // anchor deliberately clears its flag without disturbing other slots.
+      return {
+        ...prev,
+        [slot]: { ...item, isAnchor: wasEmptyOutfit },
+      };
+    });
   }, []);
 
   const setOutfitItems = useCallback((items: CatalogItem[]) => {
     const next: OutfitState = { ...EMPTY };
     for (const item of items) {
-      next[item.category as OutfitSlot] = item;
+      next[item.category as OutfitSlot] = { ...item, isAnchor: false };
     }
     setOutfit(next);
   }, []);
 
-  const clearOutfit = useCallback(() => setOutfit(EMPTY), []);
+  const fillEmptySlots = useCallback((items: CatalogItem[]) => {
+    setOutfit((prev) => {
+      const next = { ...prev };
+      for (const item of items) {
+        const slot = item.category as OutfitSlot;
+        if (!next[slot]) next[slot] = { ...item, isAnchor: false };
+      }
+      return next;
+    });
+  }, []);
+
+  const clearOutfit = useCallback(() => {
+    setOutfit(EMPTY);
+  }, []);
 
   const itemInOutfit = useCallback(
     (itemId: string) =>
@@ -63,7 +95,14 @@ export function OutfitProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <OutfitContext.Provider value={{ outfit, toggleItem, setOutfitItems, clearOutfit, itemInOutfit }}>
+    <OutfitContext.Provider value={{
+      outfit,
+      toggleItem,
+      setOutfitItems,
+      fillEmptySlots,
+      clearOutfit,
+      itemInOutfit,
+    }}>
       {children}
     </OutfitContext.Provider>
   );

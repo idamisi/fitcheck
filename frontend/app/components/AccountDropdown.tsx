@@ -30,13 +30,12 @@ export default function AccountDropdown() {
 
   useEffect(() => {
     if (!open) return;
-    let id: ReturnType<typeof setTimeout>;
     function handleOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
-    id = setTimeout(() => document.addEventListener("click", handleOutside), 0);
+    const id = setTimeout(() => document.addEventListener("click", handleOutside), 0);
     return () => {
       clearTimeout(id);
       document.removeEventListener("click", handleOutside);
@@ -79,6 +78,7 @@ export default function AccountDropdown() {
           style={{ background: "var(--surface)", borderColor: "var(--border)", transformOrigin: "top right" }}
         >
           {[
+            { label: "My Wardrobe",   href: "/wardrobe" },
             { label: "Saved Items",   href: "/saved" },
             { label: "Measurements",  href: "/account/measurements" },
           ].map(({ label, href }) => (

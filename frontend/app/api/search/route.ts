@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callAIModel } from "../../lib/ai";
+import { createServerSupabaseClient } from "../../lib/supabase-server";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,6 +11,14 @@ type CatalogItem = {
   gender?: string;
   color: string;
   styleTags: string[];
+};
+
+type WardrobeItem = {
+  id: string;
+  category: string;
+  color: string;
+  style_tags: string[];
+  description: string | null;
 };
 
 export type SearchInput = {
@@ -53,6 +62,7 @@ function buildSearchPrompt(
   query: string,
   catalog: CatalogItem[],
   activeFilters: SearchInput["activeFilters"],
+  wardrobeItems: WardrobeItem[],
 ): string {
   const filterNote =
     activeFilters && Object.values(activeFilters).some(Boolean)
@@ -65,6 +75,11 @@ function buildSearchPrompt(
         `id: ${c.id} | name: ${c.name} | category: ${c.category} | gender: ${c.gender ?? "unspecified"} | color: ${c.color} | style: ${c.styleTags.join(", ")}`,
     )
     .join("\n");
+  const wardrobeSummary = wardrobeItems.length > 0
+    ? wardrobeItems.map((item) =>
+      `id: ${item.id} | category: ${item.category} | color: ${item.color} | style: ${item.style_tags.join(",")}${item.description ? ` | ${item.description}` : ""}`,
+    ).join("\n")
+    : "(No wardrobe items uploaded.)";
 
   return `You are a clothing search assistant. You must respond with ONLY a JSON object — no prose, no markdown fences, no text before or after the JSON.
 
@@ -78,10 +93,16 @@ Item prices are not currently available in this catalog. Do NOT attempt to filte
 
 ${filterNote}
 
+USER'S OWN WARDROBE:
+The owned items below are already owned, not for sale. Only use them as context when the user clearly asks about their own clothes (for example, "my jacket", "what I own", or "pair this with my..."). Never return an owned-item ID in matches and never imply the user should buy one. For general searches, ignore this section.
+
 User query: "${query}"
 
-Catalog items to search:
+CATALOG ITEMS (purchasable) — these are the only IDs allowed in matches:
 ${catalogSummary}
+
+USER'S OWN WARDROBE ITEMS (already owned, not for sale):
+${wardrobeSummary}
 
 Respond with ONLY this exact JSON shape:
 {
@@ -108,8 +129,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "query must be a non-empty string." }, { status: 400 });
   }
 
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let wardrobeItems: WardrobeItem[] = [];
+  if (user) {
+    const { data, error } = await supabase
+      .from("wardrobe_items")
+      .select("id, category, color, style_tags, description")
+      .eq("user_id", user.id);
+    if (error) console.error("[/api/search] wardrobe fetch failed:", error.message);
+    else wardrobeItems = data ?? [];
+  }
+
   const hasBudget = mentionsBudget(query);
-  const prompt = buildSearchPrompt(query.trim(), catalog, activeFilters);
+  const prompt = buildSearchPrompt(query.trim(), catalog, activeFilters, wardrobeItems);
 
   // Log the prompt so it can be inspected during development / test
   console.log("[/api/search] prompt sent to model:\n", prompt);
