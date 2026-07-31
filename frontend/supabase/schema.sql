@@ -124,3 +124,39 @@ create policy "saved_outfits: own rows update"
 create policy "saved_outfits: own rows delete"
   on saved_outfits for delete
   using (user_id = auth.uid());
+
+
+-- ─── 5. wardrobe_items ───────────────────────────────────────────────────────
+
+create table if not exists wardrobe_items (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references profiles (id) on delete cascade,
+  image_url   text not null,
+  category    text not null,
+  color       text not null,
+  style_tags  text[] not null default '{}',
+  description text,
+  location    text not null default '',
+  created_at  timestamptz default now()
+);
+
+alter table wardrobe_items enable row level security;
+
+create policy "wardrobe_items: own rows select"
+  on wardrobe_items for select
+  using (user_id = auth.uid());
+
+create policy "wardrobe_items: own rows insert"
+  on wardrobe_items for insert
+  with check (user_id = auth.uid());
+
+create policy "wardrobe_items: own rows update"
+  on wardrobe_items for update
+  using (user_id = auth.uid());
+
+create policy "wardrobe_items: own rows delete"
+  on wardrobe_items for delete
+  using (user_id = auth.uid());
+
+-- Run this if wardrobe_items already exists without the location column:
+-- alter table wardrobe_items add column if not exists location text not null default '';

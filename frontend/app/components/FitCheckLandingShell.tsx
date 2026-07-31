@@ -11,9 +11,9 @@ export default function FitCheckLandingShell({
   onInputChange,
   onAsk,
   onPrompt,
-  onBrowse,
+  onWardrobe,
   onPickMatch,
-  onReview,
+  onSaved,
   loading = false,
   messages = [],
 }: {
@@ -23,9 +23,9 @@ export default function FitCheckLandingShell({
   onInputChange: (value: string) => void;
   onAsk: (text: string) => void;
   onPrompt: (prompt: string) => void;
-  onBrowse: () => void;
+  onWardrobe: () => void;
   onPickMatch: () => void;
-  onReview: () => void;
+  onSaved: () => void;
   loading?: boolean;
   messages?: { role: "user" | "assistant"; content: string }[];
 }) {
@@ -90,9 +90,9 @@ export default function FitCheckLandingShell({
         </div>
 
         <div className="landing-features w-full max-w-2xl grid grid-cols-1 sm:grid-cols-3 gap-4 relative z-10">
-          <FeatureCard title="Browse catalogue" body="Filter by category, gender, and style. Find your next fit." onClick={onBrowse} />
+          <FeatureCard title="Build Your Wardrobe" body="Upload photos of clothes you already own, and let Fitzy style them alongside the catalog." onClick={onWardrobe} />
           <FeatureCard title="Pick & Match" body="Build a full outfit, swipe through every category, and see it as a set." onClick={onPickMatch} />
-          <FeatureCard title="Honest AI review" body="Get a real, detailed opinion on fit and style — no scores, no fluff." onClick={onReview} />
+          <FeatureCard title="Saved Fits" body="Look back at outfits and items you've saved." onClick={onSaved} />
         </div>
       </main>
     </div>

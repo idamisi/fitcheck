@@ -188,9 +188,9 @@ export default function HomePage() {
         setDraft("");
       }}
       onPrompt={handleChip}
-      onBrowse={() => router.push("/catalog")}
+      onWardrobe={() => router.push("/wardrobe")}
       onPickMatch={() => router.push("/pick-match")}
-      onReview={() => router.push("/catalog")}
+      onSaved={() => router.push("/saved")}
       loading={fitzyLoading}
       messages={messages}
     />

@@ -86,25 +86,6 @@ h1, h2, h3, h4, h5, h6,
   font-family: var(--font-inter), "Inter", system-ui, sans-serif;
 }
 
-.landing-redesign::before {
-  content: "REAL BODIES / REAL FIT / REAL OPINIONS / ";
-  position: fixed;
-  z-index: 45;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 29px;
-  padding: 6px 0;
-  overflow: hidden;
-  white-space: nowrap;
-  color: #f7f3e8;
-  background: #111;
-  border-top: 1px solid #111;
-  font: 800 11px/1 var(--font-body);
-  letter-spacing: .24em;
-  text-align: center;
-}
-
 .landing-nav {
   min-height: 78px;
   padding-inline: clamp(20px, 4vw, 72px) !important;
@@ -570,10 +551,6 @@ h1, h2, h3, h4, h5, h6,
 /* ─── Calibrated landing layout ──────────────────────────────────────
    Keep the original FitCheck composition while retaining the new,
    higher-contrast campaign palette and tactile component styling. */
-.landing-redesign::before {
-  content: "REAL BODIES  /  REAL FIT  /  REAL OPINIONS";
-}
-
 .landing-hero {
   min-height: calc(100vh - 78px);
   display: flex !important;

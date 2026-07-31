@@ -172,9 +172,9 @@ function LandingPage({
         onInputChange={setChatInput}
         onAsk={() => setGate("fitzy")}
         onPrompt={(prompt) => { setChatInput(prompt); setGate("fitzy"); }}
-        onBrowse={() => setGate("catalogue")}
+        onWardrobe={() => setGate("catalogue")}
         onPickMatch={() => setGate("catalogue")}
-        onReview={() => setGate("fitzy")}
+        onSaved={() => setGate("fitzy")}
       />
       {gateProps && (
         <GateModal

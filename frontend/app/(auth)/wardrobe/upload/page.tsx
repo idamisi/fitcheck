@@ -85,6 +85,7 @@ export default function WardrobeUploadPage() {
   const [color,       setColor]       = useState("");
   const [styleTags,   setStyleTags]   = useState<Tag[]>([]);
   const [description, setDescription] = useState("");
+  const [location,    setLocation]    = useState("");
   const [tagInput,    setTagInput]    = useState<Tag | "">("");
 
   useEffect(() => {
@@ -205,6 +206,7 @@ export default function WardrobeUploadPage() {
       color:       color.trim(),
       style_tags:  styleTags,
       description: description.trim(),
+      location:    location.trim(),
     });
 
     if (error) {
@@ -518,6 +520,21 @@ export default function WardrobeUploadPage() {
                   ))}
                 </select>
               )}
+            </div>
+
+            {/* Location */}
+            <div>
+              <label style={labelStyle}>Location</label>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                disabled={stage === "saving"}
+                placeholder="e.g. Home, Suitcase, Country 2…"
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
+              />
             </div>
 
             {/* Description */}

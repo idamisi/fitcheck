@@ -18,6 +18,7 @@ type WardrobeRow = {
   color: string;
   style_tags: string[];
   description: string | null;
+  location: string;
 };
 
 type WardrobeItem = WardrobeRow & {
@@ -79,6 +80,7 @@ export default function WardrobePage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [suggestingId, setSuggestingId] = useState<string | null>(null);
   const [suggestionModal, setSuggestionModal] = useState<SuggestionModalState | null>(null);
+  const [locationFilter, setLocationFilter] = useState<string>("All");
 
   useEffect(() => {
     async function loadWardrobe() {
@@ -90,7 +92,7 @@ export default function WardrobePage() {
 
       const { data: rows, error: fetchError } = await supabase
         .from("wardrobe_items")
-        .select("id, image_url, category, color, style_tags, description")
+        .select("id, image_url, category, color, style_tags, description, location")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -197,6 +199,19 @@ export default function WardrobePage() {
 
   if (!ready) return null;
 
+  // Derive sorted unique location tabs from current items (blank → unlabelled, shown as "Unlabelled")
+  const locationTabs = ["All", ...Array.from(
+    new Set(items.map((item) => item.location.trim() || "Unlabelled"))
+  ).sort()];
+
+  const visibleItems = locationFilter === "All"
+    ? items
+    : items.filter((item) =>
+        locationFilter === "Unlabelled"
+          ? !item.location.trim()
+          : item.location.trim() === locationFilter
+      );
+
   return (
     <main className="app-refresh app-saved min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
       <div className="fixed top-0 right-0 z-30 px-5 py-3" style={{ pointerEvents: "none" }}>
@@ -204,7 +219,7 @@ export default function WardrobePage() {
       </div>
 
       <header
-        className="sticky top-0 z-20 flex items-center justify-between px-6 py-3 border-b"
+        className="sticky top-0 z-20 relative flex items-center justify-between px-6 py-3 border-b"
         style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
         <button
@@ -219,14 +234,8 @@ export default function WardrobePage() {
           </svg>
           Back
         </button>
-        <span className="app-page-title text-sm font-semibold font-heading" style={{ color: "var(--text)" }}>My Wardrobe</span>
-        <Link
-          href="/wardrobe/upload"
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2"
-          style={{ background: "var(--accent)", color: "var(--accent-text)" }}
-        >
-          Upload new item
-        </Link>
+        <span className="app-page-title text-sm font-semibold font-heading absolute left-1/2 -translate-x-1/2" style={{ color: "var(--text)" }}>My Wardrobe</span>
+        <div style={{ width: 40 }} />
       </header>
 
       <div className="flex-1 px-4 py-6">
@@ -253,25 +262,72 @@ export default function WardrobePage() {
           </section>
         ) : (
           <section>
+            {/* Location filter tabs — only shown when there are items */}
+            {locationTabs.length > 1 && (
+              <div
+                className="flex flex-wrap gap-2 mb-4"
+                role="tablist"
+                aria-label="Filter by location"
+              >
+                {locationTabs.map((tab) => (
+                  <button
+                    key={tab}
+                    role="tab"
+                    aria-selected={locationFilter === tab}
+                    onClick={() => setLocationFilter(tab)}
+                    className="px-3 py-1 rounded-full text-xs font-semibold border transition-colors focus:outline-none focus-visible:ring-2"
+                    style={{
+                      background: locationFilter === tab ? "var(--accent)" : "var(--surface)",
+                      color: locationFilter === tab ? "var(--accent-text)" : "var(--text-muted)",
+                      borderColor: locationFilter === tab ? "var(--accent)" : "var(--border)",
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <p className="app-section-title text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
-              Your items
+              {locationFilter === "All" ? "Your items" : locationFilter}
             </p>
-            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
-              {items.map((item) => (
-                <WardrobeCard
-                  key={item.id}
-                  item={item}
-                  inOutfit={itemInOutfit(item.id)}
-                  deleting={deletingId === item.id}
-                  suggesting={suggestingId === item.id}
-                  onAddToOutfit={() => handleAddToOutfit(item)}
-                  onGetSuggestions={() => handleSuggestions(item)}
-                  onDelete={() => handleDelete(item)}
-                />
-              ))}
-            </div>
+
+            {visibleItems.length === 0 ? (
+              <p className="text-sm mt-6" style={{ color: "var(--text-muted)" }}>
+                No items tagged &ldquo;{locationFilter}&rdquo;.
+              </p>
+            ) : (
+              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
+                {visibleItems.map((item) => (
+                  <WardrobeCard
+                    key={item.id}
+                    item={item}
+                    inOutfit={itemInOutfit(item.id)}
+                    deleting={deletingId === item.id}
+                    suggesting={suggestingId === item.id}
+                    onAddToOutfit={() => handleAddToOutfit(item)}
+                    onGetSuggestions={() => handleSuggestions(item)}
+                    onDelete={() => handleDelete(item)}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         )}
+      </div>
+
+      {/* ── Upload footer ─────────────────────────────────────────────────────── */}
+      <div
+        className="flex justify-center px-6 py-5 border-t"
+        style={{ background: "var(--bg)", borderColor: "var(--border)" }}
+      >
+        <Link
+          href="/wardrobe/upload"
+          className="text-sm font-semibold px-5 py-2.5 rounded-lg transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2"
+          style={{ background: "var(--accent)", color: "var(--accent-text)" }}
+        >
+          Upload new item
+        </Link>
       </div>
 
       {suggestionModal && (
