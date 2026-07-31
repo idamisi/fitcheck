@@ -10,6 +10,7 @@ type OutfitItem = {
   color: string;
   styleTags: string[];
   sizes?: string;
+  isAnchor?: boolean;
 };
 
 // Compact catalog entry sent from the client for swap candidate selection.
@@ -57,7 +58,7 @@ function buildPrompt(
       ? `\n    Available sizes: ${it.sizes}`
       : "";
     return (
-      `  - ${it.category.toUpperCase()} [id:${it.id}]: ${it.name}\n` +
+      `  - ${it.category.toUpperCase()}${it.isAnchor ? " (ANCHOR — KEEP THIS ITEM)" : ""} [id:${it.id}]: ${it.name}\n` +
       `    Color: ${it.color} | Style tags: ${it.styleTags.join(", ")}${sizeNote}`
     );
   }).join("\n");
@@ -67,6 +68,11 @@ function buildPrompt(
   const hasBottom    = items.some((i) => i.category === "bottom");
   const hasOuterwear = items.some((i) => i.category === "outerwear");
   const hasShoe      = items.some((i) => i.category === "shoe");
+  const anchorItems = items.filter((item) => item.isAnchor);
+  const hasSwappableItem = items.some((item) => !item.isAnchor);
+  const anchorNote = anchorItems.length > 0
+    ? `\nANCHOR RULE: ${anchorItems.map((item) => `${item.name} (${item.category})`).join(", ")} is the user's anchor item. Never suggest replacing, swapping, or critiquing this item as the problem. Frame recommendations around it, such as explaining what pairs well with it.\n`
+    : "";
 
   const fitNote = (hasTop || hasBottom || hasOuterwear)
     ? `Where meaningfully relevant, mention a specific fit observation based on the user's measurements:
@@ -107,7 +113,7 @@ Your review MUST cover all three of these in one unbroken paragraph:
    relaxed streetwear jacket over a formal shirt — call it out plainly and explain why it creates
    friction rather than contrast.
 
-3. CONCRETE SUGGESTION — End with one specific, actionable swap that would improve the outfit.
+3. CONCRETE SUGGESTION — ${hasSwappableItem ? "End with one specific, actionable swap that would improve a non-anchor item in the outfit." : "There is nothing else to swap: give general styling commentary and do not propose a replacement."}
    Reference the actual item you're suggesting swapping OUT (use its name or color).
    The suggestion should be precise: not "try a lighter top" but "swapping the [item name] for
    something in cream or off-white would break the all-dark palette and lift the combination."
@@ -116,6 +122,7 @@ RULES:
 - ONE paragraph only — no bullet points, no item-by-item breakdown, no labels like "Top:" or "Bottom:".
 - Be direct about weaknesses. Avoid filler phrases like "this is a great look", "works well", "nice combination".
 - ${omitNote}
+- ${anchorNote}
 - On body measurements only: stay purely descriptive (e.g. "the chest measurement is 6 cm larger than yours"). No verdicts like "too tight" or "fits perfectly".
 - ${fitNote}
 
@@ -164,12 +171,15 @@ export async function POST(req: NextRequest) {
 
   // Build swap candidates: catalog items not already selected, capped per category
   // to keep the prompt concise (max 8 per relevant slot).
-  const selectedIds = new Set(items.map((i) => i.id));
+const selectedIds = new Set(items.map((i) => i.id));
   const selectedCategories = new Set(items.map((i) => i.category));
+  const anchorCategories = new Set(items.filter((i) => i.isAnchor).map((i) => i.category));
   const countPerCat: Record<string, number> = {};
   const swapCandidates: CatalogEntry[] = (catalog ?? []).filter((c) => {
     if (selectedIds.has(c.id)) return false;
     if (!selectedCategories.has(c.category)) return false;
+    // Anchors are immutable: never offer a catalog replacement for their slot.
+    if (anchorCategories.has(c.category)) return false;
     countPerCat[c.category] = (countPerCat[c.category] ?? 0) + 1;
     return countPerCat[c.category] <= 8;
   });
@@ -227,8 +237,9 @@ export async function POST(req: NextRequest) {
   // Validate suggestedSwap: null is fine; anything else must reference a real candidate id.
   if (parsed.suggestedSwap !== null && parsed.suggestedSwap !== undefined) {
     const swap = parsed.suggestedSwap;
-    const validId = swapCandidates.some((c) => c.id === swap.itemId);
-    if (!validId) {
+    const candidate = swapCandidates.find((c) => c.id === swap.itemId);
+    const validSwap = candidate && candidate.category === swap.slot && !anchorCategories.has(swap.slot);
+    if (!validSwap) {
       // AI hallucinated an id — drop the swap rather than surface a broken card.
       console.warn("[/api/outfit-fit] suggestedSwap itemId not in candidates, dropping:", swap.itemId);
       parsed = { ...parsed, suggestedSwap: null };

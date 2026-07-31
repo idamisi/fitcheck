@@ -17,10 +17,11 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import catalog, { CatalogItem } from "../data/catalog";
-import { useOutfit } from "../lib/outfit-context";
+import { useOutfit, type OutfitItem } from "../lib/outfit-context";
 import OutfitFitPanel, { type OutfitFitState } from "./OutfitFitPanel";
 import { getStoredMeasurements } from "./FitPanel";
 import { createClient } from "../lib/supabase";
+import AutofitButton from "./AnchorBuildPrompt";
 
 // ─── data slices (full catalog, natural order) ────────────────────────────────
 
@@ -195,12 +196,12 @@ export default function FitzyOutfitBrowser({
 
   // Collect selected items in display order (outerwear → top → bottom → shoe),
   // skipping null slots.
-  const selectedItems: CatalogItem[] = [
+  const selectedItems: OutfitItem[] = [
     outfit.outerwear,
     outfit.top,
     outfit.bottom,
     outfit.shoe,
-  ].filter((i): i is CatalogItem => i !== null);
+  ].filter((i): i is OutfitItem => i !== null);
 
   const hasSelection = selectedItems.length > 0;
 
@@ -260,6 +261,7 @@ export default function FitzyOutfitBrowser({
             color: i.color,
             styleTags: i.styleTags,
             sizes: i.sizes,
+            isAnchor: i.isAnchor,
           })),
           catalog: catalog.map((c) => ({
             id: c.id,
@@ -404,17 +406,18 @@ export default function FitzyOutfitBrowser({
               role="alert"
               aria-live="assertive"
             >
-              Couldn't save — try again
+              Couldn&apos;t save — try again
             </div>
           )}
 
           {/* Button pair */}
           <div className="pointer-events-auto flex items-center gap-3">
+            <AutofitButton />
             {/* Save fit */}
             <button
               onClick={saveOutfit}
               disabled={saveStatus === "saving"}
-              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+              className="order-3 flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
               style={{
                 background: "var(--surface)",
                 color: "var(--text)",
@@ -433,9 +436,7 @@ export default function FitzyOutfitBrowser({
                 </>
               ) : (
                 <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                  </svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
                   Save fit
                 </>
               )}
@@ -445,7 +446,7 @@ export default function FitzyOutfitBrowser({
             <button
               onClick={reviewOutfit}
               disabled={outfitFit.status === "loading"}
-              className="flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+              className="order-2 flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
               style={{
                 background: "var(--accent)",
                 color: "var(--accent-text)",
@@ -463,7 +464,7 @@ export default function FitzyOutfitBrowser({
                   Reviewing…
                 </>
               ) : (
-                "Review my fit"
+                <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 5h6" /><path d="M9 3h6v4H9z" /><path d="M5 5h1a2 2 0 0 1 2 2v1h8V7a2 2 0 0 1 2-2h1v16H5z" /><path d="m9 15 2 2 4-4" /></svg>Review my fit</>
               )}
             </button>
           </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { createServerSupabaseClient } from "../../lib/supabase-server";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -19,6 +20,14 @@ type CatalogItem = {
   styleTags: string[];
 };
 
+type WardrobeItem = {
+  id: string;
+  category: string;
+  color: string;
+  style_tags: string[];
+  description: string | null;
+};
+
 export type FitzyInput = {
   messages: ChatMessage[];   // full history, newest last
   catalog: CatalogItem[];
@@ -30,13 +39,18 @@ export type FitzyOutput =
 
 // ─── Prompt ───────────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(catalog: CatalogItem[]): string {
+function buildSystemPrompt(catalog: CatalogItem[], wardrobeItems: WardrobeItem[]): string {
   const catalogSummary = catalog
     .map(
       (c) =>
         `id:${c.id} | ${c.name} | ${c.category} | ${c.gender ?? "any"} | ${c.color} | ${c.styleTags.join(",")}`,
     )
     .join("\n");
+  const wardrobeSummary = wardrobeItems.length > 0
+    ? wardrobeItems.map((item) =>
+      `id:${item.id} | ${item.category} | ${item.color} | ${item.style_tags.join(",")}${item.description ? ` | ${item.description}` : ""}`,
+    ).join("\n")
+    : "(No wardrobe items uploaded.)";
 
   return `You are Fitzy, a friendly and direct personal style assistant inside FitCheck.
 
@@ -57,13 +71,18 @@ You have access to a clothing catalog. For every user message you must decide:
 
 STRICT RULES:
 - Respond with ONLY a JSON object. No markdown. No prose outside the JSON.
-- For "search" type, itemIds must only contain IDs from the catalog below.
+- For "search" type, itemIds must only contain IDs from the CATALOG ITEMS section below.
 - For "chat" type, omit itemIds entirely.
+- USER'S OWN WARDROBE ITEMS are already owned, never for sale. Only reference them when the user clearly asks about their own clothes (for example: "my jacket", "what I own", or "pair this with my..."). Do not proactively mention them for general outfit requests.
+- When you do reference a wardrobe item, call it something the user owns; never imply they should buy it.
 - Keep reply under 60 words.
 - Be warm, direct, and specific. Never say "Great choice!" or filler phrases.
 
-CATALOG:
-${catalogSummary}`;
+CATALOG ITEMS (purchasable):
+${catalogSummary}
+
+USER'S OWN WARDROBE ITEMS (already owned, not for sale):
+${wardrobeSummary}`;
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
@@ -82,6 +101,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "messages must be a non-empty array." }, { status: 400 });
   }
 
+  // RLS plus this explicit user filter ensures Fitzy only receives the current
+  // user's own items. Missing auth or an empty wardrobe remains a normal flow.
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let wardrobeItems: WardrobeItem[] = [];
+  if (user) {
+    const { data, error } = await supabase
+      .from("wardrobe_items")
+      .select("id, category, color, style_tags, description")
+      .eq("user_id", user.id);
+    if (error) console.error("[/api/fitzy] wardrobe fetch failed:", error.message);
+    else wardrobeItems = data ?? [];
+  }
+
   const token = process.env.HF_TOKEN;
   if (!token) {
     return NextResponse.json({ error: "AI service not configured." }, { status: 500 });
@@ -95,7 +128,7 @@ export async function POST(req: NextRequest) {
     apiKey: token,
   });
 
-  const systemPrompt = buildSystemPrompt(catalog);
+  const systemPrompt = buildSystemPrompt(catalog, wardrobeItems);
 
   console.log("[/api/fitzy] history length:", cappedMessages.length);
 
