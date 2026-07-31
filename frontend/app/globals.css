@@ -440,6 +440,119 @@ h1, h2, h3, h4, h5, h6,
   border-color: var(--app-green) !important;
 }
 
+.app-home .home-hero {
+  position: relative;
+  min-height: 270px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 42px clamp(90px, 14vw, 160px);
+}
+
+.app-home .home-hero-copy {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.app-home .home-hero-title {
+  font-family: var(--font-manrope), "Manrope", system-ui, sans-serif !important;
+  color: var(--text) !important;
+  font-size: clamp(54px, 6vw, 82px) !important;
+  font-weight: 700 !important;
+  line-height: .98 !important;
+  letter-spacing: -.055em !important;
+}
+
+.app-home .home-hero-subtitle {
+  max-width: 620px;
+  margin: 14px auto 0 !important;
+  color: #1d32ff !important;
+  font-family: var(--font-manrope), "Manrope", system-ui, sans-serif;
+  font-size: clamp(15px, 1.3vw, 19px) !important;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -.02em;
+}
+
+.app-home .home-hero-shapes {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.app-home .home-shape {
+  position: absolute;
+  opacity: .38;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.app-home .home-shape-shirt {
+  width: 112px;
+  left: 1%;
+  top: 8%;
+  fill: #8b6fe8;
+  stroke: #5b43b5;
+  transform: rotate(-8deg);
+}
+
+.app-home .home-shape-trousers {
+  width: 88px;
+  left: 10%;
+  bottom: -20%;
+  fill: #31b77a;
+  stroke: #14734f;
+  transform: rotate(4deg);
+}
+
+.app-home .home-shape-dress {
+  width: 98px;
+  right: 2%;
+  top: 4%;
+  fill: #ff835c;
+  stroke: #d84e31;
+  transform: rotate(7deg);
+}
+
+.app-home .home-shape-bag {
+  width: 82px;
+  right: 11%;
+  bottom: -4%;
+  fill: #e9ac3f;
+  stroke: #a86e12;
+  transform: rotate(-5deg);
+}
+
+.app-home .home-shape-bag path {
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.app-home .home-shape-bag circle {
+  fill: #a86e12;
+  stroke: none;
+}
+
+@media (max-width: 700px) {
+  .app-home .home-hero {
+    min-height: 235px;
+    padding-inline: 42px;
+  }
+
+  .app-home .home-shape {
+    opacity: .2;
+  }
+
+  .app-home .home-shape-trousers,
+  .app-home .home-shape-bag {
+    display: none;
+  }
+}
+
 .app-catalog .app-match-badge {
   color: #4a240f !important;
   background: var(--app-yellow-soft) !important;
@@ -565,7 +678,7 @@ h1, h2, h3, h4, h5, h6,
 }
 
 .landing-copy h1::after {
-  content: "YOUR DIGITAL STYLIST";
+  content: none;
   display: block;
   margin: 12px auto 0;
   padding: 0;
@@ -576,6 +689,50 @@ h1, h2, h3, h4, h5, h6,
   font-weight: 650;
   line-height: 1.15;
   letter-spacing: -.025em;
+}
+
+.landing-shell-subheading {
+  margin: 8px auto 0 !important;
+  color: #1d32ff !important;
+  background: transparent;
+  font-family: var(--font-manrope), "Manrope", system-ui, sans-serif;
+  font-size: clamp(15px, 1.3vw, 19px) !important;
+  font-weight: 650;
+  line-height: 1.25 !important;
+  letter-spacing: -.02em;
+}
+
+.landing-fitzy-thread {
+  display: flex;
+  max-height: 180px;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  padding: 2px 2px 8px;
+}
+
+.landing-fitzy-message {
+  max-width: 86%;
+  padding: 8px 11px;
+  border-radius: 13px;
+  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.landing-fitzy-message.is-user {
+  align-self: flex-end;
+  color: var(--bg);
+  background: var(--text);
+  border-bottom-right-radius: 4px;
+}
+
+.landing-fitzy-message.is-assistant {
+  align-self: flex-start;
+  color: var(--text);
+  background: rgba(255, 255, 255, .7);
+  border: 1px solid rgba(17, 17, 17, .18);
+  border-bottom-left-radius: 4px;
 }
 
 .landing-copy p {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase";
 import Avatar from "../../components/Avatar";
 import AccountDropdown from "../../components/AccountDropdown";
+import FitCheckLandingShell from "../../components/FitCheckLandingShell";
 import type { FitzyChatMessage } from "../../components/FitzyChat";
 import type { Measurements } from "../../components/MeasurementForm";
 import type { FitzyOutput } from "../../api/fitzy/route";
@@ -177,6 +178,27 @@ export default function HomePage() {
   const greeting = displayName ? `Hey, ${displayName}.` : "Hey.";
 
   return (
+    <FitCheckLandingShell
+      navAction={<AccountDropdown />}
+      subheading={`Hey, ${displayName ?? "there"} — let's find your next fit.`}
+      inputValue={draft}
+      onInputChange={setDraft}
+      onAsk={(text) => {
+        void handleSend(text);
+        setDraft("");
+      }}
+      onPrompt={handleChip}
+      onBrowse={() => router.push("/catalog")}
+      onPickMatch={() => router.push("/pick-match")}
+      onReview={() => router.push("/catalog")}
+      loading={fitzyLoading}
+      messages={messages}
+    />
+  );
+
+  /* Previous dashboard presentation is intentionally no longer rendered. */
+
+  return (
     <div className="app-refresh app-home" style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
       <style>{`
         .home-grid {
@@ -240,9 +262,29 @@ export default function HomePage() {
       >
 
         {/* ── Greeting ─────────────────────────────────────────────────────── */}
-        <div style={{ marginBottom: "1.75rem" }}>
+        <div className="home-hero" style={{ marginBottom: "1.75rem" }}>
+          <div className="home-hero-shapes" aria-hidden="true">
+            <svg className="home-shape home-shape-shirt" viewBox="0 0 120 110">
+              <path d="M30 8 L10 28 L28 36 L24 100 L96 100 L92 36 L110 28 L90 8 Q80 0 72 6 Q65 18 60 18 Q55 18 48 6 Q40 0 30 8Z" />
+            </svg>
+            <svg className="home-shape home-shape-trousers" viewBox="0 0 100 130">
+              <path d="M14 8 Q50 3 86 8 L82 58 L66 126 L49 126 L51 70 L46 70 L40 126 L23 126 L18 58 Z" />
+              <path d="M18 18 L82 18 M31 22 Q35 34 45 37 M69 22 Q65 34 55 37 M50 8 L50 70" fill="none" />
+            </svg>
+            <svg className="home-shape home-shape-dress" viewBox="0 0 110 140">
+              <path d="M36 6 Q28 2 20 14 L8 28 L26 36 L28 56 L82 56 L84 36 L102 28 L90 14 Q82 2 74 6 Q66 18 55 18 Q44 18 36 6Z" />
+              <path d="M28 56 L14 136 L96 136 L82 56 Z" />
+            </svg>
+            <svg className="home-shape home-shape-bag" viewBox="0 0 100 110">
+              <rect x="8" y="32" width="84" height="72" rx="6" />
+              <path d="M28 32 Q28 8 50 8 Q72 8 72 32" fill="none" />
+              <rect x="22" y="52" width="56" height="32" rx="4" fill="none" />
+              <circle cx="50" cy="52" r="4" />
+            </svg>
+          </div>
+          <div className="home-hero-copy">
           <h1
-            className="app-page-title"
+            className="app-page-title home-hero-title"
             style={{
               fontFamily: "var(--font-heading)", color: "var(--text)",
               fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
@@ -252,9 +294,10 @@ export default function HomePage() {
           >
             {greeting}
           </h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.9375rem", marginTop: "0.375rem" }}>
+          <p className="home-hero-subtitle" style={{ color: "var(--text-muted)", fontSize: "0.9375rem", marginTop: "0.375rem" }}>
             Tell Fitzy what you&apos;re looking for today.
           </p>
+          </div>
         </div>
 
         {/* ── Two-column grid ──────────────────────────────────────────────── */}

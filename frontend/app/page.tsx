@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import GateModal from "./components/GateModal";
+import FitCheckLandingShell from "./components/FitCheckLandingShell";
 import { useRouter } from "next/navigation";
 import { createClient } from "./lib/supabase";
 
@@ -157,6 +158,38 @@ function LandingPage({
     : null;
 
   const QUICK_PROMPTS = ["Dinner date outfit", "Pair a jacket", "Browse streetwear"];
+
+  return (
+    <>
+      <FitCheckLandingShell
+        navAction={(
+          <button onClick={onGoChoice} className="landing-signin px-5 py-2 text-sm font-semibold rounded-lg focus:outline-none focus-visible:ring-2 transition-colors">
+            Sign In
+          </button>
+        )}
+        subheading="YOUR DIGITAL STYLIST"
+        inputValue={chatInput}
+        onInputChange={setChatInput}
+        onAsk={() => setGate("fitzy")}
+        onPrompt={(prompt) => { setChatInput(prompt); setGate("fitzy"); }}
+        onBrowse={() => setGate("catalogue")}
+        onPickMatch={() => setGate("catalogue")}
+        onReview={() => setGate("fitzy")}
+      />
+      {gateProps && (
+        <GateModal
+          heading={gateProps.heading!}
+          body={gateProps.body!}
+          onClose={gateProps.onClose!}
+          onRegister={gateProps.onRegister!}
+          onLogin={gateProps.onLogin!}
+        />
+      )}
+    </>
+  );
+
+  /* Legacy inline presentation retained temporarily for reference while the
+     shared shell is exercised by both public and authenticated entry points. */
 
   return (
     <div className="landing-redesign min-h-screen flex flex-col" style={{ background: "var(--bg)", color: "var(--text)" }}>
@@ -453,8 +486,7 @@ function LandingPage({
 
       </main>
 
-      {/* ── Gate modals ─────────────────────────────────────────────── */}
-      {gateProps && <GateModal {...gateProps} />}
+      {/* Gate modal is rendered by the shared shell return above. */}
     </div>
   );
 }
