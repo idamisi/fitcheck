@@ -1,6 +1,200 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callAIModel } from "../../lib/ai";
 
+// ─── Size chart lookup (mirrors /api/fit — server-side recommendation) ────────
+
+type SizeEntry = { label: string; measurements: Record<string, number> };
+
+const SIZE_CHART_FAMILIES: Record<string, SizeEntry[]> = {
+  mens_tops_regular: [
+    { label: "S",  measurements: { shoulderWidth: 43, chest:  94 } },
+    { label: "M",  measurements: { shoulderWidth: 45, chest: 100 } },
+    { label: "L",  measurements: { shoulderWidth: 47, chest: 106 } },
+    { label: "XL", measurements: { shoulderWidth: 50, chest: 114 } },
+  ],
+  hm_mens_tops_regular: [
+    { label: "S",  measurements: { shoulderWidth: 43, chest:  94 } },
+    { label: "M",  measurements: { shoulderWidth: 45, chest: 100 } },
+    { label: "L",  measurements: { shoulderWidth: 47, chest: 106 } },
+    { label: "XL", measurements: { shoulderWidth: 50, chest: 114 } },
+  ],
+  womens_tops_regular: [
+    { label: "S",  measurements: { shoulderWidth: 38, chest:  86 } },
+    { label: "M",  measurements: { shoulderWidth: 40, chest:  94 } },
+    { label: "L",  measurements: { shoulderWidth: 42, chest: 102 } },
+    { label: "XL", measurements: { shoulderWidth: 44, chest: 110 } },
+  ],
+  mens_bottoms_regular: [
+    { label: "S",  measurements: { waist:  76, hip:  96, inseam: 79 } },
+    { label: "M",  measurements: { waist:  84, hip: 104, inseam: 80 } },
+    { label: "L",  measurements: { waist:  92, hip: 112, inseam: 81 } },
+    { label: "XL", measurements: { waist: 100, hip: 120, inseam: 81 } },
+  ],
+  hm_mens_bottoms_regular: [
+    { label: "S",  measurements: { waist:  76, hip:  96, inseam: 79 } },
+    { label: "M",  measurements: { waist:  84, hip: 104, inseam: 80 } },
+    { label: "L",  measurements: { waist:  92, hip: 112, inseam: 81 } },
+    { label: "XL", measurements: { waist: 100, hip: 120, inseam: 81 } },
+  ],
+  womens_bottoms_regular: [
+    { label: "S",  measurements: { waist:  68, hip:  92, inseam: 78 } },
+    { label: "M",  measurements: { waist:  76, hip: 100, inseam: 79 } },
+    { label: "L",  measurements: { waist:  84, hip: 108, inseam: 80 } },
+    { label: "XL", measurements: { waist:  92, hip: 116, inseam: 80 } },
+  ],
+};
+
+type UserM = OutfitFitInput["userMeasurements"];
+
+function recommendSizeForItem(item: OutfitItem, userM: UserM): string | null {
+  if (!item.sizeChartRef) return null;
+  const chart = SIZE_CHART_FAMILIES[item.sizeChartRef];
+  if (!chart || chart.length === 0) return null;
+
+  const cat = item.category.toLowerCase();
+  const keys: string[] =
+    cat === "top" || cat === "outerwear" ? ["chest", "shoulderWidth"] :
+    cat === "bottom"                     ? ["waist", "hip", "inseam"] : [];
+  if (keys.length === 0) return null;
+
+  let best: SizeEntry | null = null;
+  let bestScore = Infinity;
+  for (const entry of chart) {
+    let score = 0; let counted = 0;
+    for (const k of keys) {
+      const gv = entry.measurements[k];
+      const uv = userM[k as keyof UserM] as number | undefined;
+      if (gv == null || !uv) continue;
+      score += (gv - uv) ** 2; counted++;
+    }
+    if (counted === 0) continue;
+    if (score < bestScore) { bestScore = score; best = entry; }
+  }
+  return best ? best.label : null;
+}
+
+// ─── Deterministic size line builder ─────────────────────────────────────────
+// Produces one SizeRecommendationLine per item, always. For garments with a
+// size chart this is exact; for items with a sizes-text string it reasons from
+// the text; for shoes it gives a contextual note; for items with nothing it
+// gives an honest best-guess based on garment-type conventions.
+
+function computeSizeLines(
+  items: OutfitItem[],
+  userM: UserM,
+): SizeRecommendationLine[] {
+  return items.map((item): SizeRecommendationLine => {
+    const cat = item.category.toLowerCase();
+    const name = item.name;
+
+    // ── Shoes: no body measurement — note sizes available and that's it ──────
+    if (cat === "shoe") {
+      const sizeNote = item.sizes
+        ? `available in UK sizes ${item.sizes}`
+        : "no size information available — check brand website";
+      return { itemName: name, size: "See sizes", rationale: sizeNote };
+    }
+
+    // ── Garments with a full size chart ──────────────────────────────────────
+    const chart = item.sizeChartRef ? SIZE_CHART_FAMILIES[item.sizeChartRef] : null;
+    if (chart && chart.length > 0) {
+      const keys: Array<keyof UserM> = cat === "bottom"
+        ? ["waist", "hip", "inseam"]
+        : ["chest", "shoulderWidth"];
+
+      // Find closest size and the next size up for comparison
+      let best: SizeEntry | null = null;
+      let bestScore = Infinity;
+      for (const entry of chart) {
+        let score = 0; let counted = 0;
+        for (const k of keys) {
+          const gv = (entry.measurements as Record<string, number>)[k];
+          const uv = userM[k] as number | undefined;
+          if (gv == null || !uv) continue;
+          score += (gv - uv) ** 2; counted++;
+        }
+        if (counted === 0) continue;
+        if (score < bestScore) { bestScore = score; best = entry; }
+      }
+
+      if (!best) {
+        return { itemName: name, size: "Unable to determine", rationale: "not enough measurement data in chart" };
+      }
+
+      // Build specific rationale from key measurement diffs
+      const diffs = keys
+        .map((k) => {
+          const gv = (best!.measurements as Record<string, number>)[k];
+          const uv = userM[k] as number | undefined;
+          if (gv == null || !uv) return null;
+          const diff = gv - uv;
+          const label = k === "shoulderWidth" ? "shoulder" : k;
+          if (Math.abs(diff) <= 1) return `${label} is within 1 cm (exact match)`;
+          if (diff > 0) return `${label} is ${diff} cm wider than yours`;
+          return `${label} is ${Math.abs(diff)} cm narrower than yours`;
+        })
+        .filter(Boolean)
+        .join("; ");
+
+      // Work out if there's a next size up available
+      const bestIdx = chart.findIndex((e) => e.label === best!.label);
+      const nextUp = chart[bestIdx + 1];
+      const sizeUpHint = nextUp
+        ? `size up to ${nextUp.label} for a more relaxed fit`
+        : null;
+
+      const rationale = diffs + (sizeUpHint ? ` — ${sizeUpHint}` : "");
+      return { itemName: name, size: best.label, rationale };
+    }
+
+    // ── Garments with sizes text but no chart ─────────────────────────────────
+    if (item.sizes) {
+      // Try to infer a size label from the sizes text using user's measurements
+      const primaryM = cat === "bottom" ? userM.waist : userM.chest;
+      const sizesText = item.sizes;
+
+      // Generic convention-based guess
+      let guessedSize: string;
+      if (cat === "bottom") {
+        if (primaryM <= 78)       guessedSize = "S (waist ~76–78 cm)";
+        else if (primaryM <= 86)  guessedSize = "M (waist ~82–86 cm)";
+        else if (primaryM <= 94)  guessedSize = "L (waist ~90–94 cm)";
+        else                      guessedSize = "XL (waist 95+ cm)";
+      } else {
+        if (primaryM <= 96)       guessedSize = "S (chest ~92–96 cm)";
+        else if (primaryM <= 102) guessedSize = "M (chest ~98–102 cm)";
+        else if (primaryM <= 108) guessedSize = "L (chest ~104–108 cm)";
+        else                      guessedSize = "XL (chest 109+ cm)";
+      }
+      return {
+        itemName: name,
+        size: guessedSize,
+        rationale: `estimated from general ${cat} sizing conventions — available: ${sizesText}`,
+      };
+    }
+
+    // ── No data at all: honest best-guess from conventions ────────────────────
+    const primaryM = cat === "bottom" ? userM.waist : userM.chest;
+    let guessedSize: string;
+    if (cat === "bottom") {
+      if (primaryM <= 78)       guessedSize = "S";
+      else if (primaryM <= 86)  guessedSize = "M";
+      else if (primaryM <= 94)  guessedSize = "L";
+      else                      guessedSize = "XL";
+    } else {
+      if (primaryM <= 96)       guessedSize = "S";
+      else if (primaryM <= 102) guessedSize = "M";
+      else if (primaryM <= 108) guessedSize = "L";
+      else                      guessedSize = "XL";
+    }
+    return {
+      itemName: name,
+      size: guessedSize,
+      rationale: `estimated from general ${cat} sizing conventions — no size chart available for this item`,
+    };
+  });
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OutfitItem = {
@@ -10,6 +204,8 @@ type OutfitItem = {
   color: string;
   styleTags: string[];
   sizes?: string;
+  sizeChartRef?: string;
+  recommendedSize?: string | null;  // pre-computed server-side, passed to AI for richer reasoning
   isAnchor?: boolean;
 };
 
@@ -41,9 +237,16 @@ export type SuggestedSwap = {
   reason: string;
 };
 
+export type SizeRecommendationLine = {
+  itemName: string;
+  size: string;      // e.g. "M", "L", "Size not determinable"
+  rationale: string; // e.g. "chest measures 2 cm wider than yours — true to size"
+};
+
 export type OutfitFitOutput = {
   review: string;
   suggestedSwap: SuggestedSwap | null;
+  sizeRecommendations: SizeRecommendationLine[];  // one entry per non-shoe item, always populated
 };
 
 // ─── Prompt builder ───────────────────────────────────────────────────────────
@@ -54,9 +257,12 @@ function buildPrompt(
   swapCandidates: CatalogEntry[],
 ): string {
   const itemLines = items.map((it) => {
-    const sizeNote = it.sizes
-      ? `\n    Available sizes: ${it.sizes}`
-      : "";
+    const sizeNote = it.recommendedSize
+      ? `\n    Recommended size for this user: ${it.recommendedSize}` +
+        (it.sizes ? ` (available: ${it.sizes})` : "")
+      : it.sizes
+        ? `\n    Available sizes: ${it.sizes}`
+        : "";
     return (
       `  - ${it.category.toUpperCase()}${it.isAnchor ? " (ANCHOR — KEEP THIS ITEM)" : ""} [id:${it.id}]: ${it.name}\n` +
       `    Color: ${it.color} | Style tags: ${it.styleTags.join(", ")}${sizeNote}`
@@ -74,14 +280,8 @@ function buildPrompt(
     ? `\nANCHOR RULE: ${anchorItems.map((item) => `${item.name} (${item.category})`).join(", ")} is the user's anchor item. Never suggest replacing, swapping, or critiquing this item as the problem. Frame recommendations around it, such as explaining what pairs well with it.\n`
     : "";
 
-  const fitNote = (hasTop || hasBottom || hasOuterwear)
-    ? `Where meaningfully relevant, mention a specific fit observation based on the user's measurements:
-  height: ${userM.height} cm | shoulderWidth: ${userM.shoulderWidth} cm | chest: ${userM.chest} cm
-  waist: ${userM.waist} cm | hip: ${userM.hip} cm | inseam: ${userM.inseam} cm
-Only bring up a measurement if it actually affects how the outfit reads (e.g. a long inseam on wide-leg trousers, chest on a structured blazer).
-On body fit, stay purely descriptive — state the difference in centimetres or note the size range. Do NOT say "too small", "too big", "fits well", or any other verdict about the user's body.
-Do NOT comment on shoe fit.`
-    : `No garment measurements are relevant here. Focus on style only.`;
+  // Size guidance is now handled as a dedicated structured field — not by the AI prose.
+  // The AI review focuses only on colour, style cohesion, and the swap suggestion.
 
   const omitNote = [
     !hasTop       && "No top is selected — do not mention a missing top.",
@@ -98,7 +298,7 @@ Do NOT comment on shoe fit.`
   return `You are an opinionated personal stylist with a sharp eye and a direct voice. You must respond with ONLY a JSON object — no prose, no markdown fences, no text before or after the JSON.
 
 TASK:
-Write a single outfit review (one flowing paragraph, 80–130 words) for the combination of items below.
+Write a single outfit review (one flowing paragraph, 85–140 words) for the combination of items below.
 Speak like a knowledgeable friend — confident, specific, honest. Do not hedge or give empty praise.
 
 Your review MUST cover all three of these in one unbroken paragraph:
@@ -108,14 +308,14 @@ Your review MUST cover all three of these in one unbroken paragraph:
    pulls the warmth out of the beige" or "olive and black are both low-chroma, so the outfit
    reads as flat without anything to break the monotone." If colors clash or compete, say so directly.
 
-2. STYLE COHESION — Assess whether the style registers across all pieces are compatible.
-   If they are, explain why the combination holds together. If there is a mismatch — e.g. a
-   relaxed streetwear jacket over a formal shirt — call it out plainly and explain why it creates
-   friction rather than contrast.
+2. STYLE COHESION — Assess whether the formality registers and silhouette proportions across all pieces
+   are compatible. If they are, explain what makes the combination hold. If there is a mismatch —
+   e.g. a relaxed streetwear jacket over a formal shirt, or a heavy sole under slim tailoring —
+   call it out plainly and explain why it creates friction rather than contrast.
 
-3. CONCRETE SUGGESTION — ${hasSwappableItem ? "End with one specific, actionable swap that would improve a non-anchor item in the outfit." : "There is nothing else to swap: give general styling commentary and do not propose a replacement."}
-   Reference the actual item you're suggesting swapping OUT (use its name or color).
-   The suggestion should be precise: not "try a lighter top" but "swapping the [item name] for
+3. SIZE & SUGGESTION — ${hasSwappableItem ? "End with one specific, actionable swap that would improve a non-anchor item in the outfit." : "There is nothing else to swap: give general styling commentary and do not propose a replacement."}
+   If any item has a recommended size listed above, work it in naturally (e.g. "grabbing a M here keeps the bomber fitted at the shoulder"). If no size data exists, skip size and focus on the style suggestion.
+   The suggestion must be precise: not "try a lighter top" but "swapping the [item name] for
    something in cream or off-white would break the all-dark palette and lift the combination."
 
 RULES:
@@ -123,9 +323,6 @@ RULES:
 - Be direct about weaknesses. Avoid filler phrases like "this is a great look", "works well", "nice combination".
 - ${omitNote}
 - ${anchorNote}
-- On body measurements only: stay purely descriptive (e.g. "the chest measurement is 6 cm larger than yours"). No verdicts like "too tight" or "fits perfectly".
-- ${fitNote}
-
 User's selected outfit:
 ${itemLines}
 
@@ -183,6 +380,9 @@ const selectedIds = new Set(items.map((i) => i.id));
     countPerCat[c.category] = (countPerCat[c.category] ?? 0) + 1;
     return countPerCat[c.category] <= 8;
   });
+
+  // Compute deterministic size lines for every item — these never go through the AI
+  const sizeRecommendations = computeSizeLines(items, userMeasurements);
 
   const prompt = buildPrompt(userMeasurements, items, swapCandidates);
 
@@ -249,5 +449,7 @@ const selectedIds = new Set(items.map((i) => i.id));
     parsed = { ...parsed, suggestedSwap: null };
   }
 
-  return NextResponse.json(parsed);
+  // Attach the server-computed size recommendations — guaranteed to cover every item
+  const response: OutfitFitOutput = { ...parsed, sizeRecommendations };
+  return NextResponse.json(response);
 }

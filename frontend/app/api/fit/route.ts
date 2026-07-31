@@ -197,6 +197,7 @@ function buildPrompt(
   userM: FitInput["userMeasurements"],
   item: CatalogItem,
   garmentM: GarmentMeasurements,
+  recommendedSize: string | null,
   catalog: CatalogItem[],
   activeFilters: FitInput["activeFilters"],
 ): string {
@@ -212,7 +213,7 @@ function buildPrompt(
     ? chartLines
     : item.sizes
       ? `  Available sizes/dimensions: ${item.sizes}`
-      : "  (no garment measurements available — skip numeric comparisons)";
+      : "  (no garment measurements available — use general garment-type conventions)";
 
   const filterNote =
     activeFilters && Object.values(activeFilters).some(Boolean)
@@ -228,39 +229,61 @@ function buildPrompt(
     )
     .join("\n");
 
+  const sizeContext = recommendedSize
+    ? `The server has already determined that size ${recommendedSize} is the closest match for this user's measurements against this item's size chart.`
+    : `No size chart is available for this item.`;
+
   const fitBlock = isShoe
     ? `The selected item is a shoe. Do NOT write fit comparison language — shoes have no comparable body measurement.
 Set "fitDescription" to null in your JSON response.`
-    : `Compare the garment data to the user's body measurements.
-If exact cm measurements are available, state exact differences in centimetres.
-If only size/dimension text is available, use it to give a practical sizing observation.
-Write purely factual, descriptive sentences. Do NOT use evaluative words like "good", "bad", "too small", "too big", or "fits well".
-Example (with measurements): "The chest measurement is 4 cm larger than yours. Shoulder width is within 1 cm."
-Example (with size text): "This item is available in waist sizes 26W–54W. Based on your waist of ${userM.waist} cm, the closest size is approximately [relevant size]."
+    : (() => {
+        const hasMeasurements = chartLines.length > 0;
+        const hasSizesText = !!item.sizes;
+
+        if (hasMeasurements) {
+          return `SIZE & FIT ANALYSIS — write a single concise paragraph (2–4 sentences) in "fitDescription":
+
+${sizeContext} Explain WHY that size is the best pick by describing the actual fit tradeoff in practical terms.
+Be specific about the closest measurements: state exact cm differences for the key dimensions (chest, shoulder, waist, hip, or inseam — whichever apply to this garment type).
+Then give the user one actionable nuance: e.g. "If you prefer a looser fit through the chest, size up to L" or "M will sit close to the body — true to size for this cut."
+
+Do NOT use evaluative verdicts like "fits perfectly", "too tight", or "too big".
+Stay descriptive: compare numbers, then reason about what that means in practice.
 
 User body measurements:
-  height: ${userM.height} cm
-  shoulderWidth: ${userM.shoulderWidth} cm
-  chest: ${userM.chest} cm
-  waist: ${userM.waist} cm
-  hip: ${userM.hip} cm
-  inseam: ${userM.inseam} cm
+  height: ${userM.height} cm | shoulderWidth: ${userM.shoulderWidth} cm | chest: ${userM.chest} cm
+  waist: ${userM.waist} cm | hip: ${userM.hip} cm | inseam: ${userM.inseam} cm
 
-Selected garment measurements/sizes:
-${garmentLines}
+Selected item's size chart data (medium/representative size):
+${garmentLines}`;
+        } else if (hasSizesText) {
+          return `SIZE & FIT ANALYSIS — write a single concise paragraph (2–4 sentences) in "fitDescription":
 
-Put your factual comparison in the "fitDescription" field.`;
+No cm chart data is available for this item, but size options are: ${item.sizes}.
+${sizeContext}
+Based on general ${item.category} sizing conventions and the user's measurements (chest: ${userM.chest} cm, waist: ${userM.waist} cm, shoulder: ${userM.shoulderWidth} cm, inseam: ${userM.inseam} cm), reason through which size is most appropriate.
+State your best size recommendation clearly, then give one practical tradeoff (e.g. size up if they prefer more room in the chest, stay at recommended size for a closer fit).`;
+        } else {
+          return `SIZE & FIT ANALYSIS — write a single concise paragraph (2–3 sentences) in "fitDescription":
 
-  return `You are a factual clothing fit and styling assistant. You must respond with ONLY a JSON object — no prose, no markdown fences, no text before or after the JSON.
+No size chart or size data is available for this item. Use general ${item.category} sizing conventions.
+Based on the user's measurements (chest: ${userM.chest} cm, shoulder: ${userM.shoulderWidth} cm, waist: ${userM.waist} cm), give your best reasoned size recommendation, clearly stating it's an estimate based on garment-type conventions.`;
+        }
+      })();
 
-TASK:
+  return `You are a sharp, direct clothing fit and styling expert. You must respond with ONLY a JSON object — no prose, no markdown fences, no text before or after the JSON.
+
+TASK — TWO PARTS:
+
+PART 1 — FIT ANALYSIS:
 ${fitBlock}
 
+PART 2 — STYLING RECOMMENDATIONS:
 Recommend exactly 2 or 3 complementary catalog items that pair well with the selected item.
-For each recommendation, write a pairing reason that covers ALL THREE of the following angles — do not echo the style tags back as a sentence:
-  1. COLOUR: Describe the actual colour relationship (e.g. "the navy creates a clean contrast against the beige", "both are earth tones that sit in the same tonal range", "the white provides a light top to balance the heavy dark bottom").
-  2. SILHOUETTE: Comment on how the two cuts interact (e.g. "the slim-cut chino balances the relaxed fit of the hoodie", "wide-leg trousers work with the cropped length of this top").
-  3. FORMALITY: Confirm the formality levels align or explain how to bridge them (e.g. "both sit in the smart-casual register", "the blazer slightly dresses up what is otherwise a casual pairing").
+For each recommendation, write ONE flowing sentence that naturally covers all three angles — do not use labels or bullet points:
+  • COLOUR: Describe the actual colour relationship with specificity. Don't just name tones — say what effect the pairing creates (e.g. "the raw-denim blue pulls the warmth out of the beige", "navy and black are both cool-dark and risk reading as a single block unless the textures contrast").
+  • SILHOUETTE: How do the cuts interact? (e.g. "the slim chino cuts through the visual weight of the hoodie", "wide-leg trousers paired with this cropped top create a balanced proportion").
+  • FORMALITY: Do the registers align, or does one item dress the other up/down? Be precise (e.g. "both land in the smart-casual band", "the blazer nudges this otherwise casual pairing a half-step up").
 ${filterNote}
 
 Selected item:
@@ -274,10 +297,10 @@ ${catalogSummary}
 
 Respond with ONLY this exact JSON shape:
 {
-  "fitDescription": "<factual comparison text, or null for shoes>",
+  "fitDescription": "<concise size & fit paragraph, or null for shoes>",
   "recommendations": [
-    { "id": "<id>", "name": "<name>", "reason": "<colour relationship + silhouette interaction + formality match>" },
-    { "id": "<id>", "name": "<name>", "reason": "<colour relationship + silhouette interaction + formality match>" }
+    { "id": "<id>", "name": "<name>", "reason": "<one flowing sentence: colour effect + silhouette interaction + formality alignment>" },
+    { "id": "<id>", "name": "<name>", "reason": "<one flowing sentence: colour effect + silhouette interaction + formality alignment>" }
   ]
 }`;
 }
@@ -303,10 +326,13 @@ export async function POST(req: NextRequest) {
   }
 
   const garmentMeasurements = resolveItemMeasurements(selectedItem);
+  // Compute size recommendation before building the prompt so the AI can reason about it
+  const recommendedSize = recommendSize(selectedItem, userMeasurements);
   const prompt = buildPrompt(
     userMeasurements,
     selectedItem,
     garmentMeasurements,
+    recommendedSize,
     catalog,
     activeFilters,
   );
@@ -352,9 +378,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Deterministic size recommendation — computed server-side, not by the AI
-  const recommendedSize = recommendSize(selectedItem, userMeasurements);
-
+  // recommendedSize already computed above — reuse it
   const response: FitOutput = { ...parsed, recommendedSize };
   return NextResponse.json(response);
 }
