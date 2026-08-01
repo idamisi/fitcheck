@@ -1,4 +1,5 @@
 import { OutfitProvider, OutfitSelectionGuard } from "../lib/outfit-context";
+import GlobalFitzyWidget from "../components/GlobalFitzyWidget";
 
 // ─── Authenticated shell layout ───────────────────────────────────────────────
 // Wraps every authenticated route with OutfitProvider so outfit state is
@@ -12,6 +13,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <OutfitProvider>
       <OutfitSelectionGuard />
       {children}
+      <GlobalFitzyWidget />
     </OutfitProvider>
   );
 }

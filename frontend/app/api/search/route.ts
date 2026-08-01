@@ -19,6 +19,7 @@ type WardrobeItem = {
   color: string;
   style_tags: string[];
   description: string | null;
+  collection_name: string;
 };
 
 export type SearchInput = {
@@ -77,7 +78,7 @@ function buildSearchPrompt(
     .join("\n");
   const wardrobeSummary = wardrobeItems.length > 0
     ? wardrobeItems.map((item) =>
-      `id: ${item.id} | category: ${item.category} | color: ${item.color} | style: ${item.style_tags.join(",")}${item.description ? ` | ${item.description}` : ""}`,
+      `id: ${item.id} | category: ${item.category} | color: ${item.color} | collection: ${item.collection_name || "Unsorted"} | style: ${item.style_tags.join(",")}${item.description ? ` | ${item.description}` : ""}`,
     ).join("\n")
     : "(No wardrobe items uploaded.)";
 
@@ -95,6 +96,7 @@ ${filterNote}
 
 USER'S OWN WARDROBE:
 The owned items below are already owned, not for sale. Only use them as context when the user clearly asks about their own clothes (for example, "my jacket", "what I own", or "pair this with my..."). Never return an owned-item ID in matches and never imply the user should buy one. For general searches, ignore this section.
+Collection labels are free-text groupings. If this request says to exclude a collection, honour that exclusion for this request. Otherwise, items from different collections can be freely combined.
 
 User query: "${query}"
 
@@ -135,7 +137,7 @@ export async function POST(req: NextRequest) {
   if (user) {
     const { data, error } = await supabase
       .from("wardrobe_items")
-      .select("id, category, color, style_tags, description")
+      .select("id, category, color, style_tags, description, collection_name")
       .eq("user_id", user.id);
     if (error) console.error("[/api/search] wardrobe fetch failed:", error.message);
     else wardrobeItems = data ?? [];

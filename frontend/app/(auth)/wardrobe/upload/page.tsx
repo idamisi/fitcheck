@@ -74,6 +74,7 @@ export default function WardrobeUploadPage() {
   // pick stage
   const [previewUrl,   setPreviewUrl]   = useState<string | null>(null);
   const [selectedBlob, setSelectedBlob] = useState<Blob | null>(null);
+  const [fileName,     setFileName]     = useState<string | null>(null);
   const [fileError,    setFileError]    = useState<string | null>(null);
 
   // uploading / error
@@ -121,6 +122,7 @@ export default function WardrobeUploadPage() {
       const url  = URL.createObjectURL(blob);
       setSelectedBlob(blob);
       setPreviewUrl(url);
+      setFileName(file.name);
     } catch {
       setFileError("Could not process the image. Please try a different file.");
     }
@@ -224,6 +226,7 @@ export default function WardrobeUploadPage() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setSelectedBlob(null);
+    setFileName(null);
     setStage("pick");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -235,6 +238,11 @@ export default function WardrobeUploadPage() {
 
   function removeTag(tag: Tag) {
     setStyleTags((prev) => prev.filter((t) => t !== tag));
+  }
+
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push("/home");
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -255,15 +263,15 @@ export default function WardrobeUploadPage() {
         }}
       >
         <button
-          onClick={() => router.push("/home")}
-          style={{
-            fontFamily: "var(--font-heading)", color: "var(--text)",
-            background: "none", border: "none", padding: 0,
-            fontSize: "1.125rem", fontWeight: 700, letterSpacing: "-0.02em",
-            cursor: "pointer",
-          }}
+          type="button"
+          onClick={goBack}
+          className="flex items-center gap-1.5 rounded-lg text-sm transition-colors focus:outline-none focus-visible:ring-2"
+          style={{ color: "var(--text-muted)" }}
+          onMouseEnter={(event) => (event.currentTarget.style.color = "var(--text)")}
+          onMouseLeave={(event) => (event.currentTarget.style.color = "var(--text-muted)")}
         >
-          FitCheck
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+          Back
         </button>
         <AccountDropdown />
       </nav>
@@ -307,7 +315,7 @@ export default function WardrobeUploadPage() {
             <p style={{ fontWeight: 600, fontSize: "1.0625rem", margin: 0 }}>Item saved to your wardrobe.</p>
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <button
-                onClick={() => { setStage("pick"); setPreviewUrl(null); setSelectedBlob(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                onClick={() => { setStage("pick"); setPreviewUrl(null); setSelectedBlob(null); setFileName(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                 style={secondaryBtn}
               >
                 Add another
@@ -345,16 +353,33 @@ export default function WardrobeUploadPage() {
                 </label>
                 <input
                   ref={fileInputRef}
+                  id="wardrobe-photo"
                   type="file"
                   accept="image/*"
                   onChange={handleFileChange}
                   disabled={stage === "uploading"}
+                  className="sr-only"
+                />
+                <label
+                  htmlFor="wardrobe-photo"
+                  className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-sm font-semibold transition-opacity focus-within:ring-2"
                   style={{
-                    display: "block", width: "100%",
-                    fontSize: "0.875rem", color: "var(--text)",
+                    fontFamily: "var(--font-heading)",
+                    color: "var(--text)",
+                    background: "var(--bg)",
+                    borderColor: "var(--border)",
+                    opacity: stage === "uploading" ? 0.55 : 1,
                     cursor: stage === "uploading" ? "not-allowed" : "pointer",
                   }}
-                />
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                    Choose file
+                  </span>
+                  <span className="max-w-[55%] truncate text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                    {fileName ?? "No file selected"}
+                  </span>
+                </label>
                 {fileError && (
                   <p style={{ color: "var(--danger)", fontSize: "0.8125rem", marginTop: "0.375rem" }}>
                     {fileError}

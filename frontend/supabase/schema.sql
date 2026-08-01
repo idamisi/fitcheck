@@ -137,6 +137,7 @@ create table if not exists wardrobe_items (
   style_tags  text[] not null default '{}',
   description text,
   location    text not null default '',
+  collection_name text not null default '',
   created_at  timestamptz default now()
 );
 
@@ -160,3 +161,5 @@ create policy "wardrobe_items: own rows delete"
 
 -- Run this if wardrobe_items already exists without the location column:
 -- alter table wardrobe_items add column if not exists location text not null default '';
+-- Run this for an existing project to enable wardrobe collections:
+-- alter table wardrobe_items add column if not exists collection_name text not null default '';

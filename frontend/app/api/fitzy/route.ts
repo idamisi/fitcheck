@@ -26,6 +26,7 @@ type WardrobeItem = {
   color: string;
   style_tags: string[];
   description: string | null;
+  collection_name: string;
 };
 
 export type FitzyInput = {
@@ -48,7 +49,7 @@ function buildSystemPrompt(catalog: CatalogItem[], wardrobeItems: WardrobeItem[]
     .join("\n");
   const wardrobeSummary = wardrobeItems.length > 0
     ? wardrobeItems.map((item) =>
-      `id:${item.id} | ${item.category} | ${item.color} | ${item.style_tags.join(",")}${item.description ? ` | ${item.description}` : ""}`,
+      `id:${item.id} | ${item.category} | ${item.color} | collection:${item.collection_name || "Unsorted"} | ${item.style_tags.join(",")}${item.description ? ` | ${item.description}` : ""}`,
     ).join("\n")
     : "(No wardrobe items uploaded.)";
 
@@ -75,6 +76,7 @@ STRICT RULES:
 - For "chat" type, omit itemIds entirely.
 - USER'S OWN WARDROBE ITEMS are already owned, never for sale. Only reference them when the user clearly asks about their own clothes (for example: "my jacket", "what I own", or "pair this with my..."). Do not proactively mention them for general outfit requests.
 - When you do reference a wardrobe item, call it something the user owns; never imply they should buy it.
+- Each owned item includes a free-text collection label. Answer direct questions about a named collection using only items with that label. If the user says to exclude a collection (for example, "don't suggest anything from my Riyadh collection"), honour that instruction for the current conversation only; it is not a permanent preference. Unless they give such an instruction, collections may be freely combined.
 - Keep reply under 60 words.
 - Be warm, direct, and specific. Never say "Great choice!" or filler phrases.
 
@@ -109,7 +111,7 @@ export async function POST(req: NextRequest) {
   if (user) {
     const { data, error } = await supabase
       .from("wardrobe_items")
-      .select("id, category, color, style_tags, description")
+      .select("id, category, color, style_tags, description, collection_name")
       .eq("user_id", user.id);
     if (error) console.error("[/api/fitzy] wardrobe fetch failed:", error.message);
     else wardrobeItems = data ?? [];

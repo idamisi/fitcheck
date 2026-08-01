@@ -19,6 +19,7 @@ type WardrobeRow = {
   style_tags: string[];
   description: string | null;
   location: string;
+  collection_name: string;
 };
 
 type WardrobeItem = WardrobeRow & {
@@ -78,9 +79,15 @@ export default function WardrobePage() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
   const [suggestingId, setSuggestingId] = useState<string | null>(null);
   const [suggestionModal, setSuggestionModal] = useState<SuggestionModalState | null>(null);
-  const [locationFilter, setLocationFilter] = useState<string>("All");
+
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push("/home");
+  }
+  const [collectionFilter, setCollectionFilter] = useState<string>("All");
 
   useEffect(() => {
     async function loadWardrobe() {
@@ -92,7 +99,7 @@ export default function WardrobePage() {
 
       const { data: rows, error: fetchError } = await supabase
         .from("wardrobe_items")
-        .select("id, image_url, category, color, style_tags, description, location")
+        .select("id, image_url, category, color, style_tags, description, location, collection_name")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -170,6 +177,27 @@ export default function WardrobePage() {
     if (!itemInOutfit(item.id)) toggleItem(item);
   }
 
+  async function handleAssignCollection(item: WardrobeItem, collectionName: string) {
+    const nextCollection = collectionName.trim();
+    setAssigningId(item.id);
+    setError(null);
+
+    const { error: updateError } = await supabase
+      .from("wardrobe_items")
+      .update({ collection_name: nextCollection })
+      .eq("id", item.id);
+
+    if (updateError) {
+      console.error("[wardrobe] collection update failed:", updateError.message);
+      setError("Could not update the collection. Please try again.");
+    } else {
+      setItems((current) => current.map((currentItem) =>
+        currentItem.id === item.id ? { ...currentItem, collection_name: nextCollection } : currentItem,
+      ));
+    }
+    setAssigningId(null);
+  }
+
   async function handleSuggestions(item: WardrobeItem) {
     setSuggestingId(item.id);
     setError(null);
@@ -199,18 +227,13 @@ export default function WardrobePage() {
 
   if (!ready) return null;
 
-  // Derive sorted unique location tabs from current items (blank → unlabelled, shown as "Unlabelled")
-  const locationTabs = ["All", ...Array.from(
-    new Set(items.map((item) => item.location.trim() || "Unlabelled"))
-  ).sort()];
+  const collectionTabs = ["All", ...Array.from(
+    new Set(items.map((item) => item.collection_name.trim()).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b))];
 
-  const visibleItems = locationFilter === "All"
+  const visibleItems = collectionFilter === "All"
     ? items
-    : items.filter((item) =>
-        locationFilter === "Unlabelled"
-          ? !item.location.trim()
-          : item.location.trim() === locationFilter
-      );
+    : items.filter((item) => item.collection_name.trim() === collectionFilter);
 
   return (
     <main className="app-refresh app-saved min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
@@ -223,7 +246,7 @@ export default function WardrobePage() {
         style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
         <button
-          onClick={() => router.push("/home")}
+          onClick={goBack}
           className="flex items-center gap-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 rounded-lg"
           style={{ color: "var(--text-muted)" }}
           onMouseEnter={(event) => (event.currentTarget.style.color = "var(--text)")}
@@ -262,24 +285,23 @@ export default function WardrobePage() {
           </section>
         ) : (
           <section>
-            {/* Location filter tabs — only shown when there are items */}
-            {locationTabs.length > 1 && (
+            {collectionTabs.length > 1 && (
               <div
                 className="flex flex-wrap gap-2 mb-4"
                 role="tablist"
-                aria-label="Filter by location"
+                aria-label="Filter by collection"
               >
-                {locationTabs.map((tab) => (
+                {collectionTabs.map((tab) => (
                   <button
                     key={tab}
                     role="tab"
-                    aria-selected={locationFilter === tab}
-                    onClick={() => setLocationFilter(tab)}
+                    aria-selected={collectionFilter === tab}
+                    onClick={() => setCollectionFilter(tab)}
                     className="px-3 py-1 rounded-full text-xs font-semibold border transition-colors focus:outline-none focus-visible:ring-2"
                     style={{
-                      background: locationFilter === tab ? "var(--accent)" : "var(--surface)",
-                      color: locationFilter === tab ? "var(--accent-text)" : "var(--text-muted)",
-                      borderColor: locationFilter === tab ? "var(--accent)" : "var(--border)",
+                      background: collectionFilter === tab ? "var(--accent)" : "var(--surface)",
+                      color: collectionFilter === tab ? "var(--accent-text)" : "var(--text-muted)",
+                      borderColor: collectionFilter === tab ? "var(--accent)" : "var(--border)",
                     }}
                   >
                     {tab}
@@ -289,12 +311,12 @@ export default function WardrobePage() {
             )}
 
             <p className="app-section-title text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
-              {locationFilter === "All" ? "Your items" : locationFilter}
+              {collectionFilter === "All" ? "On the Rack" : collectionFilter}
             </p>
 
             {visibleItems.length === 0 ? (
               <p className="text-sm mt-6" style={{ color: "var(--text-muted)" }}>
-                No items tagged &ldquo;{locationFilter}&rdquo;.
+                No items in &ldquo;{collectionFilter}&rdquo; yet.
               </p>
             ) : (
               <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
@@ -304,8 +326,11 @@ export default function WardrobePage() {
                     item={item}
                     inOutfit={itemInOutfit(item.id)}
                     deleting={deletingId === item.id}
+                    assigning={assigningId === item.id}
                     suggesting={suggestingId === item.id}
+                    collections={collectionTabs.slice(1)}
                     onAddToOutfit={() => handleAddToOutfit(item)}
+                    onAssignCollection={(collectionName) => handleAssignCollection(item, collectionName)}
                     onGetSuggestions={() => handleSuggestions(item)}
                     onDelete={() => handleDelete(item)}
                   />
@@ -348,19 +373,45 @@ function WardrobeCard({
   item,
   inOutfit,
   deleting,
+  assigning,
   suggesting,
+  collections,
   onAddToOutfit,
+  onAssignCollection,
   onGetSuggestions,
   onDelete,
 }: {
   item: WardrobeItem;
   inOutfit: boolean;
   deleting: boolean;
+  assigning: boolean;
   suggesting: boolean;
+  collections: string[];
   onAddToOutfit: () => void;
+  onAssignCollection: (collectionName: string) => void;
   onGetSuggestions: () => void;
   onDelete: () => void;
 }) {
+  const [creatingCollection, setCreatingCollection] = useState(false);
+  const [newCollection, setNewCollection] = useState("");
+
+  function handleCollectionSelect(value: string) {
+    if (value === "__new__") {
+      setCreatingCollection(true);
+      return;
+    }
+    setCreatingCollection(false);
+    onAssignCollection(value);
+  }
+
+  function createCollection() {
+    const collectionName = newCollection.trim();
+    if (!collectionName) return;
+    onAssignCollection(collectionName);
+    setCreatingCollection(false);
+    setNewCollection("");
+  }
+
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <div className="relative w-full" style={{ paddingBottom: "120%", background: "var(--bg)" }}>
@@ -377,6 +428,37 @@ function WardrobeCard({
           {item.style_tags.map((tag) => (
             <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "var(--bg)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>{tag}</span>
           ))}
+        </div>
+        <div className="pt-2">
+          <label className="block text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            Collection
+          </label>
+          <select
+            value={creatingCollection ? "__new__" : item.collection_name}
+            onChange={(event) => handleCollectionSelect(event.target.value)}
+            disabled={deleting || assigning}
+            className="mt-1 w-full rounded-lg border px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2 disabled:opacity-50"
+            style={{ background: "var(--bg)", color: "var(--text)", borderColor: "var(--border)" }}
+          >
+            <option value="">Unsorted</option>
+            {collections.map((collection) => <option key={collection} value={collection}>{collection}</option>)}
+            <option value="__new__">+ New collection…</option>
+          </select>
+          {creatingCollection && (
+            <div className="mt-2 flex gap-1.5">
+              <input
+                value={newCollection}
+                onChange={(event) => setNewCollection(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); createCollection(); } }}
+                placeholder="e.g. Gym clothes"
+                maxLength={60}
+                autoFocus
+                className="min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2"
+                style={{ background: "var(--bg)", color: "var(--text)", borderColor: "var(--border)" }}
+              />
+              <button type="button" onClick={createCollection} disabled={!newCollection.trim() || assigning} className="rounded-lg px-2 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>Save</button>
+            </div>
+          )}
         </div>
         <div className="mt-auto flex items-center gap-2 pt-3">
           <button

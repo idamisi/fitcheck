@@ -4,15 +4,12 @@ import Image from "next/image";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import catalog, { CatalogItem } from "../../data/catalog";
-import type { FitzyOutput } from "../../api/fitzy/route";
 import { createClient } from "../../lib/supabase";
 import AccountDropdown from "../../components/AccountDropdown";
 import { useOutfit, type OutfitItem } from "../../lib/outfit-context";
 import { CategoryRow } from "../../components/CategoryRows";
 import OutfitFitPanel, { type OutfitFitState } from "../../components/OutfitFitPanel";
 import { getStoredMeasurements } from "../../components/FitPanel";
-import FitzyChat from "../../components/FitzyChat";
-import type { FitzyChatMessage } from "../../components/FitzyChat";
 import { useSavedItems } from "../../lib/useSavedItems";
 import AutofitButton from "../../components/AnchorBuildPrompt";
 
@@ -70,7 +67,7 @@ function FilterPill({
 export default function CatalogPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { outfit, toggleItem, clearOutfit } = useOutfit();
+  const { outfit, toggleItem } = useOutfit();
 
   const { savedRowIds, loadSavedItems, toggleSave } = useSavedItems();
   const [userId, setUserId] = useState<string | null>(null);
@@ -80,12 +77,6 @@ export default function CatalogPage() {
 
   // ── true once the profile fetch has resolved and gender is correctly seeded ──
   const [profileReady, setProfileReady] = useState(false);
-
-  // ── Fitzy chat state (shared thread) ──────────────────────────────────────
-  const [fitzyMessages, setFitzyMessages] = useState<FitzyChatMessage[]>([]);
-  const [fitzyLoading, setFitzyLoading] = useState(false);
-  const [fitzyOpen, setFitzyOpen] = useState(false);
-  const [fitzyUnread, setFitzyUnread] = useState(false);
 
   // ── Header text (Fitzy's reply for current results) ───────────────────────
   const [fitzyHeaderText, setFitzyHeaderText] = useState<string | null>(null);
@@ -136,7 +127,6 @@ export default function CatalogPage() {
           const ctx = JSON.parse(raw);
           if (ctx.reply)     setFitzyHeaderText(ctx.reply);
           if (ctx.itemIds)   setFitzyItemIds(ctx.itemIds);
-          if (ctx.messages)  setFitzyMessages(ctx.messages);
           // Clear so a refresh doesn't re-apply stale context
           sessionStorage.removeItem("fitzy_context");
         }
@@ -179,59 +169,6 @@ export default function CatalogPage() {
     () => (fitzyItemIds ? filteredByGenderStyle.filter((i) => matchIds.has(i.id)).length : 0),
     [fitzyItemIds, filteredByGenderStyle, matchIds],
   );
-
-  // ── Fitzy send handler ───────────────────────────────────────────────────
-  async function handleFitzySend(text: string) {
-    // A new search replaces the visible results — drop any previously
-    // selected outfit items before the new results land.
-    clearOutfit();
-
-    const userMsg: FitzyChatMessage = { role: "user", content: text };
-    const next = [...fitzyMessages, userMsg];
-    setFitzyMessages(next);
-    setFitzyLoading(true);
-
-    try {
-      const res = await fetch("/api/fitzy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: next.map(({ role, content }) => ({ role, content })),
-          // Send only the currently visible (gender+style-filtered) items so
-          // Fitzy never picks IDs that would be silently dropped from the rows.
-          catalog: filteredByGenderStyle,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Unknown error" }));
-        const errMsg = { role: "assistant" as const, content: err.error ?? "Fitzy's having trouble right now — try again." };
-        setFitzyMessages((prev) => [...prev, errMsg]);
-        if (!fitzyOpen) setFitzyUnread(true);
-        return;
-      }
-
-      const data: FitzyOutput = await res.json();
-
-      if (data.type === "search") {
-        setFitzyHeaderText(data.reply);
-        setFitzyItemIds(data.itemIds);
-        const assistantMsg = { role: "assistant" as const, content: data.reply, itemIds: data.itemIds };
-        setFitzyMessages((prev) => [...prev, assistantMsg]);
-        if (!fitzyOpen) setFitzyUnread(true);
-      } else {
-        const assistantMsg = { role: "assistant" as const, content: data.reply };
-        setFitzyMessages((prev) => [...prev, assistantMsg]);
-        if (!fitzyOpen) setFitzyUnread(true);
-      }
-    } catch {
-      const errMsg = { role: "assistant" as const, content: "Fitzy's having trouble right now — try again." };
-      setFitzyMessages((prev) => [...prev, errMsg]);
-      if (!fitzyOpen) setFitzyUnread(true);
-    } finally {
-      setFitzyLoading(false);
-    }
-  }
 
   // ── Outfit review / save (same logic as Pick & Match) ────────────────────
   const selectedItems: OutfitItem[] = [
@@ -567,93 +504,6 @@ export default function CatalogPage() {
         onClose={() => setOutfitFit({ status: "idle" })}
         onSwap={(item) => { toggleItem(item); setOutfitFit({ status: "idle" }); }}
       />
-
-      {/* ── Fitzy floating panel ── */}
-      {fitzyOpen && (
-        <>
-          {/* Backdrop — tap outside to dismiss */}
-          <div
-            className="fixed inset-0 z-40 transition-opacity duration-200 ease-out starting:opacity-0 motion-reduce:transition-none"
-            style={{ background: "rgba(11,26,51,0.25)" }}
-            onClick={() => setFitzyOpen(false)}
-          />
-          <div
-            className="fixed bottom-20 right-4 z-50 w-80 rounded-2xl flex flex-col overflow-hidden shadow-lg transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-95 motion-reduce:transition-none"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              height: 420,
-              transformOrigin: "bottom right",
-            }}
-          >
-            {/* Panel header */}
-            <div
-              className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <span className="text-sm font-semibold" style={{ color: "var(--text)", fontFamily: "var(--font-heading)" }}>
-                Fitzy
-              </span>
-              <button
-                onClick={() => setFitzyOpen(false)}
-                className="focus:outline-none"
-                style={{ color: "var(--text-muted)" }}
-                aria-label="Close Fitzy"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-
-            {/* Chat thread */}
-            <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
-              <FitzyChat
-                messages={fitzyMessages}
-                onSend={handleFitzySend}
-                loading={fitzyLoading}
-                mode="panel"
-                placeholder="Refine or ask something…"
-              />
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ── Fitzy FAB — stacked above action bar ── */}
-      <button
-        onClick={() => {
-          setFitzyOpen((v) => !v);
-          setFitzyUnread(false);
-        }}
-        className="fitzy-fab fixed right-4 bottom-6 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-xl focus:outline-none focus-visible:ring-2"
-        style={{
-          "--fab-offset": hasSelection ? "-92px" : "0px",
-          background: fitzyOpen ? "var(--text)" : "var(--accent)",
-          color: fitzyOpen ? "var(--bg)" : "var(--accent-text)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-        } as React.CSSProperties}
-        aria-label={fitzyOpen ? "Close Fitzy" : "Open Fitzy"}
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-        <span className="text-[11px] font-bold" style={{ fontFamily: "var(--font-heading)", letterSpacing: "0.01em" }}>
-          Fitzy
-        </span>
-        {/* Unread dot */}
-        {fitzyUnread && !fitzyOpen && (
-          <span
-            className="unread-dot absolute top-0 right-0 w-2 h-2 rounded-full border-2"
-            style={{
-              background: "var(--danger)",
-              borderColor: "var(--bg)",
-              transform: "translate(35%, -35%)",
-            }}
-            aria-label="Unread message"
-          />
-        )}
-      </button>
 
     </main>
   );
