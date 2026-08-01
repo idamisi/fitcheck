@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import catalog, { type CatalogItem } from "../data/catalog";
-import type { OutfitFitOutput } from "../api/outfit-fit/route";
+import type { OutfitFitOutput, SizeRecommendationLine } from "../api/outfit-fit/route";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -180,8 +180,41 @@ export default function OutfitFitPanel({
           {displayState.status === "done" && (() => {
             const swap = displayState.data.suggestedSwap;
             const swapItem = swap ? catalog.find((c) => c.id === swap.itemId) : null;
+            const sizeRecs: SizeRecommendationLine[] = displayState.data.sizeRecommendations ?? [];
             return (
               <>
+                {/* ── Size Recommendations ── */}
+                {sizeRecs.length > 0 && (
+                  <div>
+                    <p
+                      className="text-xs font-semibold uppercase tracking-wider mb-2"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Size Recommendations
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      {sizeRecs.map((rec, i) => (
+                        <div
+                          key={i}
+                          className="flex items-baseline gap-2 rounded-lg px-3 py-2"
+                          style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+                        >
+                          <span
+                            className="text-xs font-bold flex-shrink-0 rounded px-1.5 py-0.5"
+                            style={{ background: "var(--accent)", color: "var(--accent-text)", minWidth: 28, textAlign: "center" }}
+                          >
+                            {rec.size}
+                          </span>
+                          <span className="text-xs leading-snug" style={{ color: "var(--text)" }}>
+                            <span className="font-medium">{rec.itemName}</span>
+                            <span style={{ color: "var(--text-muted)" }}> — {rec.rationale}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <p
                     className="text-xs font-semibold uppercase tracking-wider mb-1.5"

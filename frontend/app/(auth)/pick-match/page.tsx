@@ -160,6 +160,7 @@ export default function PickMatchPage() {
             color: i.color,
             styleTags: i.styleTags,
             sizes: i.sizes,
+            sizeChartRef: i.sizeChartRef,
             isAnchor: i.isAnchor,
           })),
           catalog: catalog.map((c) => ({

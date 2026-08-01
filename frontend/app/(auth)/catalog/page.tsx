@@ -219,7 +219,7 @@ export default function CatalogPage() {
           userMeasurements: storedMeasurements,
           items: selectedItems.map((i) => ({
             id: i.id, name: i.name, category: i.category,
-            color: i.color, styleTags: i.styleTags, sizes: i.sizes, isAnchor: i.isAnchor,
+            color: i.color, styleTags: i.styleTags, sizes: i.sizes, sizeChartRef: i.sizeChartRef, isAnchor: i.isAnchor,
           })),
           catalog: catalog.map((c) => ({
             id: c.id, name: c.name, category: c.category,
