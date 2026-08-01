@@ -8,7 +8,7 @@ import catalog, { CatalogItem } from "../../../data/catalog";
 import type { FitOutput } from "../../../api/fit/route";
 import AccountDropdown from "../../../components/AccountDropdown";
 import { useOutfit } from "../../../lib/outfit-context";
-import { getStoredMeasurements } from "../../../lib/measurements";
+import { getCurrentUserMeasurements } from "../../../lib/measurements";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,7 +86,7 @@ export default function ItemDetailPage() {
   // ── fit check ─────────────────────────────────────────────────────────────
   async function handleCheckFit() {
     if (!item) return;
-    const storedM = getStoredMeasurements();
+    const storedM = await getCurrentUserMeasurements(supabase);
     if (!storedM) {
       setFit({ status: "error", message: "No measurements found. Go to Your measurements and save them first." });
       return;

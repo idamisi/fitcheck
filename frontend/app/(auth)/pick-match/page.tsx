@@ -7,7 +7,7 @@ import catalog, { CatalogItem } from "../../data/catalog";
 import AccountDropdown from "../../components/AccountDropdown";
 import { useOutfit, type OutfitItem } from "../../lib/outfit-context";
 import OutfitFitPanel, { type OutfitFitState } from "../../components/OutfitFitPanel";
-import { getStoredMeasurements } from "../../lib/measurements";
+import { getCurrentUserMeasurements } from "../../lib/measurements";
 import { createClient } from "../../lib/supabase";
 import { CategoryRow } from "../../components/CategoryRows";
 import { useSavedItems } from "../../lib/useSavedItems";
@@ -139,7 +139,7 @@ export default function PickMatchPage() {
   }, [outfit.outerwear?.id, outfit.top?.id, outfit.bottom?.id, outfit.shoe?.id]);
 
   const reviewOutfit = useCallback(async () => {
-    const storedMeasurements = getStoredMeasurements();
+    const storedMeasurements = await getCurrentUserMeasurements(supabase);
     if (!storedMeasurements) {
       setOutfitFit({ status: "error", message: "No measurements found. Please enter your measurements first." });
       return;

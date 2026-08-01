@@ -9,7 +9,7 @@ import AccountDropdown from "../../components/AccountDropdown";
 import { useOutfit, type OutfitItem } from "../../lib/outfit-context";
 import { CategoryRow } from "../../components/CategoryRows";
 import OutfitFitPanel, { type OutfitFitState } from "../../components/OutfitFitPanel";
-import { getStoredMeasurements } from "../../lib/measurements";
+import { getCurrentUserMeasurements } from "../../lib/measurements";
 import { useSavedItems } from "../../lib/useSavedItems";
 import AutofitButton from "../../components/AnchorBuildPrompt";
 
@@ -205,7 +205,7 @@ export default function CatalogPage() {
   }, [outfit.outerwear?.id, outfit.top?.id, outfit.bottom?.id, outfit.shoe?.id]);
 
   const reviewOutfit = useCallback(async () => {
-    const storedMeasurements = getStoredMeasurements();
+    const storedMeasurements = await getCurrentUserMeasurements(supabase);
     if (!storedMeasurements) {
       setOutfitFit({ status: "error", message: "No measurements found. Please enter your measurements first." });
       return;
