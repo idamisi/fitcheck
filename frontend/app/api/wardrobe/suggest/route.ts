@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import catalog, { type CatalogItem } from "../../../data/catalog";
 import { callAIModel } from "../../../lib/ai";
+import { createServerSupabaseClient } from "../../../lib/supabase-server";
 
 type SuggestInput = {
   category: "top" | "bottom" | "outerwear" | "shoe";
@@ -28,7 +29,15 @@ export async function POST(req: NextRequest) {
   // Give Fitzy a balanced, real-catalog candidate set across categories other
   // than the owned item. This follows the ID-constrained recommendation pattern
   // used by outfit review and auto-build routes.
-  const candidates = catalog.filter((item) => item.category !== body.category).slice(0, 48);
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("gender").eq("id", user.id).maybeSingle()
+    : { data: null };
+  const gender = profile?.gender === "men" || profile?.gender === "women" ? profile.gender : null;
+  const candidates = catalog
+    .filter((item) => item.category !== body.category && (!gender || item.gender === gender))
+    .slice(0, 48);
   const candidateLines = candidates
     .map((item) => `id:${item.id} | ${item.category} | ${item.name} | ${item.color} | ${item.styleTags.join(", ")}`)
     .join("\n");

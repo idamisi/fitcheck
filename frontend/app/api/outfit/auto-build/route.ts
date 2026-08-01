@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import catalog, { type CatalogItem } from "../../../data/catalog";
 import { callAIModel } from "../../../lib/ai";
+import { createServerSupabaseClient } from "../../../lib/supabase-server";
 
 type OutfitSlot = "top" | "bottom" | "outerwear" | "shoe";
 
@@ -36,8 +37,14 @@ export async function POST(req: NextRequest) {
 
   // Cap each category just as the existing outfit-fit route caps swap choices:
   // the model chooses only from real, manageable catalog candidates.
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("gender").eq("id", user.id).maybeSingle()
+    : { data: null };
+  const gender = profile?.gender === "men" || profile?.gender === "women" ? profile.gender : null;
   const candidates = requestedSlots.flatMap((slot) =>
-    catalog.filter((item) => item.category === slot).slice(0, 16),
+    catalog.filter((item) => item.category === slot && (!gender || item.gender === gender)).slice(0, 16),
   );
 
   const candidateLines = candidates

@@ -9,7 +9,7 @@ import AccountDropdown from "../../components/AccountDropdown";
 import { useOutfit, type OutfitItem } from "../../lib/outfit-context";
 import { CategoryRow } from "../../components/CategoryRows";
 import OutfitFitPanel, { type OutfitFitState } from "../../components/OutfitFitPanel";
-import { getStoredMeasurements } from "../../components/FitPanel";
+import { getStoredMeasurements } from "../../lib/measurements";
 import { useSavedItems } from "../../lib/useSavedItems";
 import AutofitButton from "../../components/AnchorBuildPrompt";
 

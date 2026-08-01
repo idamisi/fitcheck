@@ -6,21 +6,11 @@ import { useRouter, useParams } from "next/navigation";
 import { createClient } from "../../../lib/supabase";
 import catalog, { CatalogItem } from "../../../data/catalog";
 import type { FitOutput } from "../../../api/fit/route";
-import type { Measurements } from "../../../components/MeasurementForm";
 import AccountDropdown from "../../../components/AccountDropdown";
 import { useOutfit } from "../../../lib/outfit-context";
+import { getStoredMeasurements } from "../../../lib/measurements";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-function getStoredMeasurements(): Measurements | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem("fitcheck_measurements");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
 
 function formatPrice(item: CatalogItem) {
   if (item.price == null || !item.currency) return null;
